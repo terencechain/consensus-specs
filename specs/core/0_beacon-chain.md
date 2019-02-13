@@ -38,8 +38,6 @@
                 - [`DepositInput`](#depositinput)
             - [Exits](#exits)
                 - [`Exit`](#exit)
-            - [Transfers](#transfers)
-                - [`Transfer`](#transfer)
         - [Beacon chain blocks](#beacon-chain-blocks)
             - [`BeaconBlock`](#beaconblock)
             - [`BeaconBlockBody`](#beaconblockbody)
@@ -127,7 +125,7 @@
                 - [Deposits](#deposits-1)
                 - [Exits](#exits-1)
         - [Per-epoch processing](#per-epoch-processing)
-            - [Helper variables](#helper-variables)
+            - [Helpers](#helpers)
             - [Eth1 data](#eth1-data-1)
             - [Justification](#justification)
             - [Crosslinks](#crosslinks)
@@ -156,7 +154,7 @@ The primary source of load on the beacon chain is "attestations". Attestations a
 
 ## Notation
 
-Code snippets appearing in `this style` are to be interpreted as Python code.
+Code snippets appearing in `this style` are to be interpreted as Python code. Beacon blocks that trigger unhandled Python exceptions (e.g. out-of-range list accesses) and failed asserts are considered invalid.
 
 ## Terminology
 
@@ -169,7 +167,7 @@ Code snippets appearing in `this style` are to be interpreted as Python code.
 * **Shard chain** - one of the chains on which user transactions take place and account data is stored.
 * **Block root** - a 32-byte Merkle root of a beacon chain block or shard chain block. Previously called "block hash".
 * **Crosslink** - a set of signatures from a committee attesting to a block in a shard chain, which can be included into the beacon chain. Crosslinks are the main means by which the beacon chain "learns about" the updated state of shard chains.
-* **Slot** - a period during which one proposer has the ability to create a beacon chain block and some attesters have the ability to make attestations
+* **Slot** - a period of `SLOT_DURATION` seconds, during which one proposer has the ability to create a beacon chain block and some attesters have the ability to make attestations
 * **Epoch** - an aligned span of slots during which all [validators](#dfn-validator) get exactly one chance to make an attestation
 * **Finalized**, **justified** - see Casper FFG finalization [[casper-ffg]](#ref-casper-ffg)
 * **Withdrawal period** - the number of slots between a [validator](#dfn-validator) exit and the [validator](#dfn-validator) balance being withdrawable
@@ -233,7 +231,6 @@ Code snippets appearing in `this style` are to be interpreted as Python code.
 | `ENTRY_EXIT_DELAY` | `2**2` (= 4) | epochs | 25.6 minutes |
 | `ETH1_DATA_VOTING_PERIOD` | `2**4` (= 16) | epochs | ~1.7 hours |
 | `MIN_VALIDATOR_WITHDRAWAL_EPOCHS` | `2**8` (= 256) | epochs | ~27 hours |
-| `MIN_EXIT_EPOCHS_BEFORE_TRANSFER` | `2**13` (= 8,192) | epochs | ~36 days |
 
 ### State list lengths
 
@@ -272,7 +269,6 @@ Code snippets appearing in `this style` are to be interpreted as Python code.
 | `MAX_ATTESTATIONS` | `2**7` (= 128) |
 | `MAX_DEPOSITS` | `2**4` (= 16) |
 | `MAX_EXITS` | `2**4` (= 16) |
-| `MAX_TRANSFERS` | `2**4` (= 16) |
 
 ### Signature domains
 
@@ -283,7 +279,6 @@ Code snippets appearing in `this style` are to be interpreted as Python code.
 | `DOMAIN_PROPOSAL` | `2` |
 | `DOMAIN_EXIT` | `3` |
 | `DOMAIN_RANDAO` | `4` |
-| `DOMAIN_TRANSFER` | `5` |
 
 ## Data structures
 
@@ -445,27 +440,6 @@ The following data structures are defined as [SimpleSerialize (SSZ)](https://git
 }
 ```
 
-##### `Transfer`
-
-```python
-{
-    # Sender index
-    'from': 'uint64',
-    # Recipient index
-    'to': 'uint64',
-    # Amount in Gwei
-    'amount': 'uint64',
-    # Fee in Gwei for block proposer
-    'fee': 'uint64',
-    # Inclusion slot
-    'slot': 'uint64',
-    # Sender withdrawal pubkey
-    'pubkey': 'bytes48',
-    # Sender signature
-    'signature': 'bytes96',
-}
-```
-
 ### Beacon chain blocks
 
 #### `BeaconBlock`
@@ -494,7 +468,6 @@ The following data structures are defined as [SimpleSerialize (SSZ)](https://git
     'attestations': [Attestation],
     'deposits': [Deposit],
     'exits': [Exit],
-    'transfers': [Transfer],
 }
 ```
 
@@ -553,7 +526,6 @@ The following data structures are defined as [SimpleSerialize (SSZ)](https://git
     # Ethereum 1.0 chain data
     'latest_eth1_data': Eth1Data,
     'eth1_data_votes': [Eth1DataVote],
-    'deposit_index': 'uint64'
 }
 ```
 
@@ -919,8 +891,6 @@ def get_crosslink_committees_at_slot(state: BeaconState,
     ]
 ```
 
-**Note**: we plan to replace the shuffling algorithm with a pointwise-evaluable shuffle (see https://github.com/ethereum/eth2.0-specs/issues/323), which will allow calculation of the committees for each slot individually.
-
 ### `get_block_root`
 
 ```python
@@ -1104,7 +1074,7 @@ def get_bitfield_bit(bitfield: bytes, i: int) -> int:
     """
     Extract the bit in ``bitfield`` at position ``i``.
     """
-    return (bitfield[i // 8] >> (i % 8)) % 2
+    return (bitfield[i // 8] >> (7 - (i % 8))) % 2
 ```
 
 ### `verify_bitfield`
@@ -1281,15 +1251,12 @@ def process_deposit(state: BeaconState,
     Note that this function mutates ``state``.
     """
     # Validate the given `proof_of_possession`
-    proof_is_valid = validate_proof_of_possession(
+    assert validate_proof_of_possession(
         state,
         pubkey,
         proof_of_possession,
         withdrawal_credentials,
     )
-
-    if not proof_is_valid:
-        return
 
     validator_pubkeys = [v.pubkey for v in state.validator_registry]
 
@@ -1509,7 +1476,6 @@ def get_initial_beacon_state(initial_validator_deposits: List[Deposit],
         # Ethereum 1.0 chain data
         latest_eth1_data=latest_eth1_data,
         eth1_data_votes=[],
-        deposit_index=len(initial_validator_deposits)
     )
 
     # Process initial deposits
@@ -1549,7 +1515,7 @@ For a beacon chain block, `block`, to be processed by a node, the following cond
 
 * The parent block with root `block.parent_root` has been processed and accepted.
 * An Ethereum 1.0 block pointed to by the `state.latest_eth1_data.block_hash` has been processed and accepted.
-* The node's Unix time is greater than or equal to `state.genesis_time + block.slot * SLOT_DURATION`. (Note that leap seconds mean that slots will occasionally last `SLOT_DURATION + 1` or `SLOT_DURATION - 1` seconds, possibly several times a year.)
+* The node's local clock time is greater than or equal to `state.genesis_time + block.slot * SLOT_DURATION`.
 
 If these conditions are not met, the client should delay processing the beacon block until the conditions are all satisfied.
 
@@ -1619,8 +1585,6 @@ We now define the state transition function. At a high level the state transitio
 3. The per-epoch transitions, which happens at the end of the last slot of every epoch (i.e. `(state.slot + 1) % EPOCH_LENGTH == 0`).
 
 The per-slot transitions focus on the slot counter and block roots records updates; the per-block transitions generally focus on verifying aggregate signatures and saving temporary records relating to the per-block activity in the `BeaconState`; the per-epoch transitions focus on the [validator](#dfn-validator) registry, including adjusting balances and activating and exiting [validators](#dfn-validator), as well as processing crosslinks and managing block justification/finalization.
-
-Beacon blocks that trigger unhandled Python exceptions (e.g. out-of-range list accesses) and failed `assert`s during the state transition are considered invalid.
 
 _Note_: If there are skipped slots between a block and its parent block, run the steps in the [per-slot](#per-slot-processing) and [per-epoch](#per-epoch-processing) sections once for each skipped slot and then once for the slot containing the new block.
 
@@ -1751,7 +1715,6 @@ Verify that `len(block.body.deposits) <= MAX_DEPOSITS`.
 For each `deposit` in `block.body.deposits`:
 
 * Let `serialized_deposit_data` be the serialized form of `deposit.deposit_data`. It should be 8 bytes for `deposit_data.amount` followed by 8 bytes for `deposit_data.timestamp` and then the `DepositInput` bytes. That is, it should match `deposit_data` in the [Ethereum 1.0 deposit contract](#ethereum-10-deposit-contract) of which the hash was placed into the Merkle tree.
-* Verify that `deposit.index == state.deposit_index`.
 * Verify that `verify_merkle_branch(hash(serialized_deposit_data), deposit.branch, DEPOSIT_CONTRACT_TREE_DEPTH, deposit.index, state.latest_eth1_data.deposit_root)` is `True`.
 
 ```python
@@ -1780,8 +1743,6 @@ process_deposit(
 )
 ```
 
-* Set `state.deposit_index += 1`.
-
 ##### Exits
 
 Verify that `len(block.body.exits) <= MAX_EXITS`.
@@ -1795,31 +1756,11 @@ For each `exit` in `block.body.exits`:
 * Verify that `bls_verify(pubkey=validator.pubkey, message_hash=exit_message, signature=exit.signature, domain=get_domain(state.fork, exit.epoch, DOMAIN_EXIT))`.
 * Run `initiate_validator_exit(state, exit.validator_index)`.
 
-##### Transfers
-
-Note: Transfers are a temporary functionality for phases 0 and 1, to be removed in phase 2.
-
-Verify that `len(block.body.transfers) <= MAX_TRANSFERS` and that all transfers are distinct.
-
-For each `transfer` in `block.body.transfers`:
-
-* Verify that `state.validator_balances[transfer.from] >= transfer.amount`.
-* Verify that `state.validator_balances[transfer.from] >= transfer.fee`.
-* Verify that `state.validator_balances[transfer.from] == transfer.amount + transfer.fee` or `state.validator_balances[transfer.from] >= transfer.amount + transfer.fee + MIN_DEPOSIT_AMOUNT`.
-* Verify that `transfer.slot == state.slot`.
-* Verify that `get_current_epoch(state) >= state.validator_registry[transfer.from].exit_epoch + MIN_EXIT_EPOCHS_BEFORE_TRANSFER`.
-* Verify that `state.validator_registry[transfer.from].withdrawal_credentials == BLS_WITHDRAWAL_PREFIX_BYTE + hash(transfer.pubkey)[1:]`.
-* Let `transfer_message = hash_tree_root(Transfer(from=transfer.from, to=transfer.to, amount=transfer.amount, fee=transfer.fee, slot=transfer.slot, signature=EMPTY_SIGNATURE))`.
-* Verify that `bls_verify(pubkey=transfer.pubkey, message_hash=transfer_message, signature=transfer.signature, domain=get_domain(state.fork, slot_to_epoch(transfer.slot), DOMAIN_TRANSFER))`.
-* Set `state.validator_balances[transfer.from] -= transfer.amount + transfer.fee`.
-* Set `state.validator_balances[transfer.to] += transfer.amount`.
-* Set `state.validator_balances[get_beacon_proposer_index(state, state.slot)] += transfer.fee`.
-
 ### Per-epoch processing
 
 The steps below happen when `(state.slot + 1) % EPOCH_LENGTH == 0`.
 
-#### Helper variables
+#### Helpers
 
 * Let `current_epoch = get_current_epoch(state)`.
 * Let `previous_epoch = get_previous_epoch(state)`.
@@ -1947,7 +1888,7 @@ For each `index` in `previous_epoch_attester_indices`, we determine the proposer
 For every `slot in range(get_epoch_start_slot(previous_epoch), get_epoch_start_slot(current_epoch))`:
 
 * Let `crosslink_committees_at_slot = get_crosslink_committees_at_slot(state, slot)`.
-* For every `(crosslink_committee, shard)` in `crosslink_committees_at_slot` and every `index` in `crosslink_committee`:
+* For every `(crosslink_committee, shard)` in `crosslink_committees_at_slot`:
     * If `index in attesting_validators(crosslink_committee)`, `state.validator_balances[index] += base_reward(state, index) * total_attesting_balance(crosslink_committee) // get_total_balance(state, crosslink_committee))`.
     * If `index not in attesting_validators(crosslink_committee)`, `state.validator_balances[index] -= base_reward(state, index)`.
 
@@ -2077,10 +2018,12 @@ def process_penalties_and_exits(state: BeaconState) -> None:
     eligible_indices = filter(eligible, all_indices)
     # Sort in order of exit epoch, and validators that exit within the same epoch exit in order of validator index
     sorted_indices = sorted(eligible_indices, key=lambda index: state.validator_registry[index].exit_epoch)
-    for withdrawn_so_far, index in enumerate(sorted_indices):
+    withdrawn_so_far = 0
+    for index in sorted_indices:
+        prepare_validator_for_withdrawal(state, index)
+        withdrawn_so_far += 1
         if withdrawn_so_far >= MAX_WITHDRAWALS_PER_EPOCH:
             break
-        prepare_validator_for_withdrawal(state, index)
 ```
 
 #### Final updates
