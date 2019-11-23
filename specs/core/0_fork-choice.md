@@ -209,6 +209,8 @@ def on_block(store: Store, block: BeaconBlock) -> None:
     pre_state = store.block_states[block.parent_root].copy()
     # Blocks cannot be in the future. If they are, their consideration must be delayed until the are in the past.
     assert store.time >= pre_state.genesis_time + block.slot * SECONDS_PER_SLOT
+    # Check parent is built off on the latest finalized check point
+    assert pre_state.finalized_checkpoint.root == store.finalized_checkpoint.root
     # Add new block to the store
     store.blocks[signing_root(block)] = block
     # Check block is a descendant of the finalized block
