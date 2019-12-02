@@ -175,7 +175,7 @@ There are two primary global topics used to propagate beacon blocks and aggregat
     - The block being voted for (`aggregate_and_proof.aggregate.data.beacon_block_root`) passes validation.
     - `aggregate_and_proof.aggregate.data.slot` is within the last `ATTESTATION_PROPAGATION_SLOT_RANGE` slots (`aggregate_and_proof.aggregate.data.slot + ATTESTATION_PROPAGATION_SLOT_RANGE >= current_slot >= aggregate_and_proof.aggregate.data.slot`).
     - The validator index is within the aggregate's committee -- i.e. `aggregate_and_proof.index in get_attesting_indices(state, aggregate_and_proof.aggregate.data, aggregate_and_proof.aggregate.aggregation_bits)`.
-    - `aggregate_and_proof.selection_proof` selects the validator as an aggregator for the slot -- i.e. `is_aggregator(state, aggregate_and_proof.aggregate.data.index, aggregate_and_proof.selection_proof)` returns `True`.
+    - `aggregate_and_proof.selection_proof` selects the validator as an aggregator for the slot -- i.e. `is_aggregator(state, aggregate_and_proof.aggregate.data.slot, aggregate_and_proof.aggregate.data.index, aggregate_and_proof.selection_proof)` returns `True`.
     - The `aggregate_and_proof.selection_proof` is a valid signature of the `aggregate_and_proof.aggregate.data.slot` by the validator with index `aggregate_and_proof.index`.
     - The signature of `aggregate_and_proof.aggregate` is valid.
 
@@ -288,7 +288,7 @@ The entire request should be read in no more than `RESP_TIMEOUT`. Upon a timeout
 
 The responder SHOULD send a `response_chunk` promptly. Chunks start with a **single-byte** response code which determines the contents of the `response_chunk` (`result` particle in the BNF grammar above). For multiple chunks, only the last chunk is allowed to have a non-zero error code (i.e. The chunk stream is terminated once an error occurs).
 
-The response code can have one of the following values, encoded as a single unsigned byte:
+The response code can have one of the following vaislues, encoded as a single unsigned byte:
 
 -  0: **Success** -- a normal response follows, with contents matching the expected message schema and encoding specified in the request.
 -  1: **InvalidRequest** -- the contents of the request are semantically invalid, or the payload is malformed, or could not be understood. The response payload adheres to the `ErrorMessage` schema (described below).
