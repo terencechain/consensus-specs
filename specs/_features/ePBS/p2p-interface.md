@@ -51,7 +51,7 @@ This topic is used to propagate execution payload.
 
 The following validations MUST pass before forwarding the `execution_payload` on the network, assuming the alias `payload = execution_payload`:
 
-- _[IGNORE]_ The payload aligns with header that received in block.
+- _[IGNORE]_ The hash tree root of the payload matches the hash tree root of a payload header received previously on the `beacon_block` topic.
 
 ###### `execution_attestation`
 
@@ -73,7 +73,7 @@ The following validations MUST pass before forwarding the `signed_builder_bid` o
 - _[REJECT]_ The signed builder bid pubkey, `bid.pubkey`, exists in state.
 - _[IGNORE]_ The signed builder bid value, `bid.value`, is less than builder's balance in state.
 - _[IGNORE]_ The signed builder header timestamp is correct with respect to next slot -- i.e. `header.timestamp == compute_timestamp_at_slot(state, current_slot + 1)`.
-- _[IGNORE]_ The signed builder header parent block has matches one of the chain tip in the fork choice store. Builder may submit multiple bids with respect to forks.
+-_[IGNORE]_ The signed builder header parent block matches one of the chain tip(s) in the fork choice store. Builder may submit multiple bids corresponding to various forks.
 - _[REJECT]_ The builder signature, `signed_bid.signature`, is valid with respect to the `bid.pubkey`.
 
 #### Transitioning the gossip
