@@ -29,7 +29,7 @@ To obtain an signed builder bid, a block proposer building a block on top of a `
 * Select the best bid (the one with the highest value) and set `body.bid = signed_builder_bid`
 
 
-### Consensus attesting reminds unchanged
+### Consensus attesting remains unchanged
 
 ### Consensus attestation aggregation reminds unchanged
 
