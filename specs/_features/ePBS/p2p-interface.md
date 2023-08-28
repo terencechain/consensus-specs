@@ -1,3 +1,30 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [ePBS -- Networking](#epbs----networking)
+  - [Table of contents](#table-of-contents)
+    - [Containers](#containers)
+      - [`SignedNetworkBlock`](#signednetworkblock)
+    - [The gossip domain: gossipsub](#the-gossip-domain-gossipsub)
+      - [Topics and messages](#topics-and-messages)
+        - [Global topics](#global-topics)
+          - [`beacon_block`](#beacon_block)
+          - [`execution_payload`](#execution_payload)
+          - [`payload_attestation`](#payload_attestation)
+          - [`execution_payload_header`](#execution_payload_header)
+          - [`inclusion_list`](#inclusion_list)
+      - [Transitioning the gossip](#transitioning-the-gossip)
+    - [The Req/Resp domain](#the-reqresp-domain)
+      - [Messages](#messages)
+        - [](#)
+        - [ExecutionPayloadEnvelopeByRoot v1](#executionpayloadenvelopebyroot-v1)
+        - [NetworkBlockByRange v1](#networkblockbyrange-v1)
+        - [NetworkBlockByRoot v1](#networkblockbyroot-v1)
+  - [Design decision rationale](#design-decision-rationale)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # ePBS -- Networking
 
 
@@ -6,6 +33,18 @@ This document contains the consensus-layer networking specification for ePBS.
 The specification of these changes continues in the same format as the network specifications of previous upgrades, and assumes them as pre-requisite.
 
 ## Table of contents
+
+### Containers
+
+#### `SignedNetworkBlock`
+
+*[New in ePBS]*
+
+```python
+class SignedNetworkBlock(Container):
+    block: SignedBeaconBlock
+    payload: ExecutionPayload // Can be empty
+```
 
 ### The gossip domain: gossipsub
 
@@ -98,23 +137,25 @@ details on how to handle transitioning gossip topics for this upgrade.
 
 #### Messages
 
-##### ExecutionPayloadByHash v1
+##### 
 
-**Protocol ID:** `/eth2/beacon_chain/req/execution_payload_by_hash/1/`
+##### ExecutionPayloadEnvelopeByRoot v1
+
+**Protocol ID:** `/eth2/beacon_chain/req/execution_payload_envelope_by_root/1/`
 
 The `<context-bytes>` field is calculated as `context = compute_fork_digest(fork_version, genesis_validators_root)`:
 
 [1]: # (eth2spec: skip)
 
-| `fork_version`           | Chunk SSZ type                |
-|--------------------------|-------------------------------|
-| `EPBS_FORK_VERSION`     | `epbs.EXECUTION_PAYLOAD`           |
+| `fork_version`      | Chunk SSZ type                        |
+|---------------------|---------------------------------------|
+| `EPBS_FORK_VERSION` | `epbs.SignedExecutionPayloadEnvelope` |
 
 Request Content:
 
 ```
 (
-  List[HASH, MAX_REQUEST_PAYLOAD]
+  List[Root, MAX_REQUEST_PAYLOAD]
 )
 ```
 
@@ -122,10 +163,100 @@ Response Content:
 
 ```
 (
-  List[EXECUTION_PAYLOAD, MAX_REQUEST_PAYLOAD]
+  List[SignedExecutionPayloadEnvelope, MAX_REQUEST_PAYLOAD]
+)
+```
+Requests execution payload envelope by `signed_execution_payload_envelope.message.block_root`. The response is a list of SignedExecutionPayloadEnvelope whose length is less than or equal to the number of requested execution payload envelopes. It may be less in the case that the responding peer is missing payload envelopes.
+
+No more than MAX_REQUEST_PAYLOAD may be requested at a time.
+
+ExecutionPayloadEnvelopeByRoot is primarily used to recover recent execution payload envelope (e.g. when receiving a payload attestation with revealed status as true but never received a payload).
+
+The request MUST be encoded as an SSZ-field.
+
+The response MUST consist of zero or more response_chunk. Each successful response_chunk MUST contain a single SignedExecutionPayloadEnvelope payload.
+
+Clients MUST support requesting payload envelopes since the latest finalized epoch.
+
+Clients MUST respond with at least one payload envelope, if they have it. Clients MAY limit the number of payload envelopes in the response.
+
+##### NetworkBlockByRange v1
+
+**Protocol ID:** `/eth2/beacon_chain/req/network_block_by_range/1/`
+
+This replaces `BeaconBlockByRange` from prior specifications starting at ePBS fork.
+
+/eth2/beacon_chain/req/beacon_blocks_by_range/2/ is deprecated. Clients MAY respond with an empty list during the deprecation transition period.
+
+The `<context-bytes>` field is calculated as `context = compute_fork_digest(fork_version, genesis_validators_root)`:
+
+[1]: # (eth2spec: skip)
+
+| `fork_version`      | Chunk SSZ type            |
+|---------------------|---------------------------|
+| `EPBS_FORK_VERSION` | `epbs.SignedNetworkBlock` |
+
+Request Content:
+
+```
+(
+  start_slot: Slot
+  count: uint64
+  step: uint64 # Deprecated, must be set to 1
 )
 ```
 
+Response Content:
+
+```
+(
+  List[SignedNetworkBlock, MAX_REQUEST_BLOCK]
+)
+```
+
+NetworkBlockByRange is primarily used to sync historical blocks and payloads.
+
+Clients must respond execution payloads alongside the blocks if available.
+
+Clients must respond null execution payload if not available.
+
+##### NetworkBlockByRoot v1
+
+**Protocol ID:** `/eth2/beacon_chain/req/network_block_by_root/1/`
+
+This replaces `BeaconBlockByRoot` from prior specifications starting at ePBS fork.
+
+/eth2/beacon_chain/req/beacon_blocks_by_root/2/ is deprecated. Clients MAY respond with an empty list during the deprecation transition period.
+
+The `<context-bytes>` field is calculated as `context = compute_fork_digest(fork_version, genesis_validators_root)`:
+
+[1]: # (eth2spec: skip)
+
+| `fork_version`      | Chunk SSZ type            |
+|---------------------|---------------------------|
+| `EPBS_FORK_VERSION` | `epbs.SignedNetworkBlock` |
+
+Request Content:
+
+```
+(
+  List[Root, MAX_REQUEST_BLOCKS]
+)
+```
+
+Response Content:
+
+```
+(
+  List[SignedNetworkBlock, MAX_REQUEST_BLOCK]
+)
+```
+
+NetworkBlockByRoot is primarily used to recover recent blocks and payloads (e.g. when receiving a block or attestation whose parent is unknown).
+
+Clients must respond execution payloads alongside the blocks if available.
+
+Clients must respond null execution payload if not available.
 
 ## Design decision rationale
 

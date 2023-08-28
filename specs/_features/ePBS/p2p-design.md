@@ -1,3 +1,18 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [ePBS -- Networking Design Notes](#epbs----networking-design-notes)
+  - [Gossip validation considerations](#gossip-validation-considerations)
+    - [Signed builder bid (aka. execution payload header with builder attribution and value)](#signed-builder-bid-aka-execution-payload-header-with-builder-attribution-and-value)
+    - [Signed beacon block](#signed-beacon-block)
+    - [Beacon attestation](#beacon-attestation)
+    - [Aggregated attestation](#aggregated-attestation)
+    - [Execution attestation (aka. PTC attestation)](#execution-attestation-aka-ptc-attestation)
+  - [Request / respond RPC considerations](#request--respond-rpc-considerations)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # ePBS -- Networking Design Notes
 
 ## Gossip validation considerations

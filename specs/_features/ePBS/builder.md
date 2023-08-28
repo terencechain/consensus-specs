@@ -1,3 +1,19 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [ePBS -- Honest Builder](#epbs----honest-builder)
+  - [Introduction](#introduction)
+  - [Becoming a builder](#becoming-a-builder)
+    - [Initialization](#initialization)
+    - [Submit deposit](#submit-deposit)
+  - [Beacon chain responsibilities](#beacon-chain-responsibilities)
+    - [Signed builder bid proposal](#signed-builder-bid-proposal)
+    - [Signed builder bid reveal](#signed-builder-bid-reveal)
+    - [Signed builder bid reveal (conservative mode)](#signed-builder-bid-reveal-conservative-mode)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # ePBS -- Honest Builder
 
 **Notice**: This document is a work-in-progress for researchers and implementers.

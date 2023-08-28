@@ -1,3 +1,21 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [ePBS -- Honest Validator](#epbs----honest-validator)
+  - [Introduction](#introduction)
+  - [Prerequisites](#prerequisites)
+  - [Beacon chain responsibilities](#beacon-chain-responsibilities)
+    - [Block proposal](#block-proposal)
+      - [Constructing the `BeaconBlockBody`](#constructing-the-beaconblockbody)
+    - [Consensus attesting remains unchanged](#consensus-attesting-remains-unchanged)
+    - [Consensus attestation aggregation reminds unchanged](#consensus-attestation-aggregation-reminds-unchanged)
+    - [Payload timeliness attestation](#payload-timeliness-attestation)
+      - [Construct payload timeliness attestation](#construct-payload-timeliness-attestation)
+      - [Broadcast execution attestation](#broadcast-execution-attestation)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # ePBS -- Honest Validator
 
 **Notice**: This document is a work-in-progress for researchers and implementers.
