@@ -11,7 +11,7 @@
         - [Global topics](#global-topics)
           - [`beacon_block`](#beacon_block)
           - [`execution_payload`](#execution_payload)
-          - [`payload_attestation`](#payload_attestation)
+          - [`payload_attestation_message`](#payload_attestation_message)
           - [`execution_payload_header`](#execution_payload_header)
           - [`inclusion_list`](#inclusion_list)
       - [Transitioning the gossip](#transitioning-the-gossip)
@@ -21,7 +21,6 @@
         - [ExecutionPayloadEnvelopeByRoot v1](#executionpayloadenvelopebyroot-v1)
         - [NetworkBlockByRange v1](#networkblockbyrange-v1)
         - [NetworkBlockByRoot v1](#networkblockbyroot-v1)
-  - [Design decision rationale](#design-decision-rationale)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -43,7 +42,7 @@ The specification of these changes continues in the same format as the network s
 ```python
 class SignedNetworkBlock(Container):
     block: SignedBeaconBlock
-    payload: ExecutionPayload // Can be empty
+    payload: ExecutionPayloadEnvelope // Can be empty
 ```
 
 ### The gossip domain: gossipsub
@@ -60,12 +59,12 @@ The derivation of the `message-id` remains stable.
 
 The new topics along with the type of the `data` field of a gossipsub message are given in this table:
 
-| Name                       | Message Type                                   |
-|----------------------------|------------------------------------------------|
-| `execution_payload_header` | `SignedExecutionPayloadHeader` [New in ePBS]   |
-| `execution_payload`        | `SignedExecutionPayloadEnvelope` [New in ePBS] |
-| `payload_attestation`      | `PayloadAttestation` [New in ePBS]             |
-| `inclusion_list`           | `InclusionList` [New in ePBS]                  |
+| Name                          | Message Type                                         |
+|-------------------------------|------------------------------------------------------|
+| `execution_payload_header`    | `SignedExecutionPayloadHeaderEnvelope` [New in ePBS] |
+| `execution_payload`           | `SignedExecutionPayloadEnvelope` [New in ePBS]       |
+| `payload_attestation_message` | `PayloadAttestationMessage` [New in ePBS]            |
+| `inclusion_list`              | `InclusionList` [New in ePBS]                        |
 
 ##### Global topics
 
@@ -92,30 +91,32 @@ This topic is used to propagate execution payload envelope `SignedExecutionPaylo
 The following validations MUST pass before forwarding the `signed_execution_payload_envelope` on the network, assuming the alias `payload_envelope = signed_execution_payload_envelope.message`, `payload = payload_envelope.message.payload`:
 
 - _[IGNORE]_ The envelope's block root `payload_envelope.block_root` has been seen (via both gossip and non-gossip sources) (a client MAY queue payload for processing once the block is retrieved).
-- _[IGNORE]_ The hash tree root of the payload matches the hash tree root of a payload header received previously on the `beacon_block` topic.
+- _[IGNORE]_ The hash tree root of the `payload` in `payload_envelope` matches the hash tree root of a payload header received previously on the `beacon_block` topic.
+- _[IGNORE]_ The builder index of the `payload_envelope` matches the payload header received previously on the `beacon_block` topic.
 - _[REJECT]_ The builder signature, `signed_execution_payload_envelope.signature`, is valid with respect to the builder's public key.
 
-###### `payload_attestation`
+###### `payload_attestation_message`
 
-This topic is used to propagate signed execution attestation.
+This topic is used to propagate signed payload attestation message.
 
-The following validations MUST pass before forwarding the `payload_attestation` on the network, assuming the alias `data = payload_attestation.data`:
+The following validations MUST pass before forwarding the `payload_attestation_message` on the network, assuming the alias `data = payload_attestation_message.data`:
 
+- _[IGNORE]_ `data.slot` is within the last `ATTESTATION_PROPAGATION_SLOT_RANGE` slots (with a MAXIMUM_GOSSIP_CLOCK_DISPARITY allowance) -- i.e. `data.slot` + `ATTESTATION_PROPAGATION_SLOT_RANGE` >= `current_slot` >= `data.slot` (a client MAY queue future aggregates for processing at the appropriate slot).
 - _[IGNORE]_ The attestation's `data.block_root` has been seen (via both gossip and non-gossip sources) (a client MAY queue attestation for processing once the block is retrieved. Note a client might want to request payload after).
-- _[REJECT]_ The validator index is within the execution committee in `get_payload_timeliness_committee(state, slot)`
-- _[REJECT]_ The signature of `payload_attestation` is valid with respect to the validator index.
-
+- _[REJECT]_ The validator index is within the payload committee in `get_ptc(state, slot)`.
+- _[REJECT]_ The signature of `payload_attestation_message` is valid with respect to the validator index.
+    
 ###### `execution_payload_header`
 
 This topic is used to propagate signed execution payload header.
 
-The following validations MUST pass before forwarding the `signed_execution_payload_header` on the network, assuming the alias `header = signed_execution_payload_header.message`:
+The following validations MUST pass before forwarding the `signed_execution_payload_header_envelope` on the network, assuming the alias `header_envelope = signed_execution_payload_header_envelope.message`, `header = header_envelope.header`:
 
-- _[REJECT]_ The signed builder bid pubkey, `header.builder_index` is a valid and non-slashed builder index in state.
-- _[IGNORE]_ The signed builder bid value, `header.value`, is less than the builder minimum balance in state.  i.e. `MIN_BUILDER_BALANCE + header.value < state.builder_balances[header.builder_index]`.
+- _[REJECT]_ The signed builder bid pubkey, `header_envelope.builder_index` is a valid and non-slashed builder index in state.
+- _[IGNORE]_ The signed builder bid value, `header_envelope.value`, is less than the builder minimum balance in state.  i.e. `MIN_BUILDER_BALANCE + header.value < state.builder_balances[header.builder_index]`.
 - _[IGNORE]_ The signed builder header timestamp is correct with respect to next slot -- i.e. `header.timestamp == compute_timestamp_at_slot(state, current_slot + 1)`.
 - _[IGNORE]_ The signed builder header parent block matches one of the chain tip(s) in the fork choice store. Builder may submit multiple bids corresponding to various forks.
-- _[REJECT]_ The builder signature, `signed_bid.signature`, is valid with respect to the `header.builder_index`.
+- _[REJECT]_ The builder signature, `signed_execution_payload_header_envelope.signature`, is valid with respect to the `header_envelope.builder_index`.
 
 ###### `inclusion_list`
 
@@ -257,7 +258,3 @@ NetworkBlockByRoot is primarily used to recover recent blocks and payloads (e.g.
 Clients must respond execution payloads alongside the blocks if available.
 
 Clients must respond null execution payload if not available.
-
-## Design decision rationale
-
-TODO: Add
