@@ -7,12 +7,12 @@
   - [Prerequisites](#prerequisites)
   - [Protocols](#protocols)
     - [`ExecutionEngine`](#executionengine)
-      - [`get_inclusion_list`](#get_inclusion_list)
+      - [`get_execution_inclusion_list`](#get_execution_inclusion_list)
   - [Beacon chain responsibilities](#beacon-chain-responsibilities)
   - [Validator assignment](#validator-assignment)
     - [Lookahead](#lookahead)
     - [Inclusion list proposal](#inclusion-list-proposal)
-      - [Constructing the `InclusionList`](#constructing-the-inclusionlist)
+      - [Constructing the inclusion list](#constructing-the-inclusion-list)
       - [Broadcast inclusion list](#broadcast-inclusion-list)
     - [Block proposal](#block-proposal)
       - [Constructing the new `signed_execution_payload_header_envelope` field in  `BeaconBlockBody`](#constructing-the-new-signed_execution_payload_header_envelope-field-in--beaconblockbody)
@@ -47,14 +47,14 @@ Please see related Beacon Chain doc before continuing and use them as a referenc
 
 ### `ExecutionEngine`
 
-*Note*: `get_inclusion_list` function is added to the `ExecutionEngine` protocol for use as a validator.
+*Note*: `get_execution_inclusion_list` function is added to the `ExecutionEngine` protocol for use as a validator.
 
 The body of this function is implementation dependent.
 The Engine API may be used to implement it with an external execution engine.
 
-#### `get_inclusion_list`
+#### `get_execution_inclusion_list`
 
-Given the `parent_block_hash`, `get_inclusion_list` returns `GetInclusionListResponse` with the most recent version of
+Given the `parent_block_hash`, `get_execution_inclusion_list` returns `GetInclusionListResponse` with the most recent version of
 the inclusion list based on the parent block hash.
 
 ```python
@@ -64,7 +64,7 @@ class GetInclusionListResponse(container)
 ```
 
 ```python
-def get_inclusion_list(self: ExecutionEngine, parent_block_hash: Root) -> GetInclusionListResponse:
+def get_execution_inclusion_list(self: ExecutionEngine, parent_block_hash: Root) -> GetInclusionListResponse:
     """
     Return ``GetInclusionListResponse`` object.
     """
@@ -134,17 +134,21 @@ Proposer is introduced to construct and broadcast `InclusionList` alongside `Sig
 - Within `inclusionList`, `Summaries` are lists consisting on addresses sending those transactions and their gas limits. The summaries are signed by the proposer.
 - Proposer is allowed to send many of these pairs that aren't committed to its beacon block so no double proposing slashing is involved.
 
-#### Constructing the `InclusionList`
+#### Constructing the inclusion list
 
 To obtain an inclusion, a block proposer building a block on top of a `state` must take the following actions:
 
-1. Retrieve inclusion list by calling `get_inclusion_list`.
+1. Retrieve inclusion list from execution layer by calling `get_execution_inclusion_list`.
 
-2. Build `InclusionListSummary`
- - Set `summary` to the `inclusion_list_response.summary`
- - Set `proposer_index` to the proposer's index
+2. Call `build_inclusion_list` to get `InclusionList`.
 
-3. Get `signature` by signing `InclusionListSummary` with its private key.
+```python
+def build_inclusion_list(state: BeaconState, inclusion_list_response: GetInclusionListResponse, block_slot: Slot, privkey: int) -> InclusionList:
+    inclusion_list_summary = inclusion_list_response.inclusion_list_summary
+    signature = get_inclusion_list_summary_signature(state, inclusion_list_summary, block_slot, privkey)
+    signed_inclusion_list_summary = SignedInclusionListSummary(summary=inclusion_list_summary, signature=signature)
+    return InclusionList(summaries=signed_inclusion_list_summary, transactions=inclusion_list_response.transactions)
+```
 
 ```python
 def get_inclusion_list_summary_signature(state: BeaconState, inclusion_list_summary: InclusionListSummary, block_slot: Slot, privkey: int) -> BLSSignature:
@@ -153,17 +157,9 @@ def get_inclusion_list_summary_signature(state: BeaconState, inclusion_list_summ
     return bls.Sign(privkey, signing_root)
 ```
 
-4. Build `SignedInclusionListSummary`
- - set `signed_inclusion_list_summary.summary` to `InclusionListSummary`
- - set `signed_inclusion_list_summary.signature` to `signature
-
-5. Build `InclusionList
-- set `inclusion_list.summaries` to `SignedInclusionListSummary`
-- set `inclusion_list.transactions` to `inclusion_list_response.transactions`
-
 #### Broadcast inclusion list
 
-Finally, the validator broadcasts inclusion to the inclusion list subnet, the `inclusion_list` pubsub topic.
+Finally, the validator broadcasts inclusion list to the inclusion list subnet, the `inclusion_list` pubsub topic.
 
 ### Block proposal
 
@@ -229,7 +225,9 @@ def is_assigned_to_payload_committee(state: BeaconState,
 
 Next, the validator creates `payload_attestation_message` as follows:
 * Set `payload_attestation_data.slot = slot` where `slot` is the assigned slot.
-* Set `payload_attestation_data.beacon_block_root = block_root` where `block_root` is the block hash seen from the block builder reveal at `SECONDS_PER_SLOT * 2 / INTERVALS_PER_SLOT`. If the `SignedExecutionPayloadEnvelope`
+* Set `payload_attestation_data.beacon_block_root = block_root` where `block_root` is the head of the chain.
+* Set `payload_attestation_data.payload_revealed = True` if the `SignedExecutionPayloadEnvelope` is seen from the block builder reveal at `SECONDS_PER_SLOT * 2 / INTERVALS_PER_SLOT`, and if `ExecutionPayloadEnvelope.beacon_block_root` matches `block_root`
+    * Otherwise, set `payload_attestation_data.payload_revealed = False`.
 * Set `payload_attestation_message.validator_index = validator_index` where `validator_index` is the validator chosen to submit. The private key mapping to `state.validators[validator_index].pubkey` is used to sign the payload timeliness attestation.
 * Set `payload_attestation_message = PayloadAttestationMessage(data=payload_attestation_data, signature=payload_attestation_signature)`, where `payload_attestation_signature` is obtained from:
 
