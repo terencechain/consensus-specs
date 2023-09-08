@@ -15,10 +15,15 @@
       - [Constructing the `SignedExecutionPayloadHeaderEnvelope`](#constructing-the-signedexecutionpayloadheaderenvelope)
       - [Broadcast execution payload header envelope](#broadcast-execution-payload-header-envelope)
     - [Signed execution payload envelope construction](#signed-execution-payload-envelope-construction)
+      - [Determine if it is safe to reveal](#determine-if-it-is-safe-to-reveal)
+      - [Constructing the `SignedExecutionPayloadEnvelope`](#constructing-the-signedexecutionpayloadenvelope)
+      - [Broadcast execution payload envelope](#broadcast-execution-payload-envelope)
+      - [Broadcast blob sidecars](#broadcast-blob-sidecars)
   - [Design Decision Rationale](#design-decision-rationale)
+    - [What are the changes with regard to blob sidecars?](#what-are-the-changes-with-regard-to-blob-sidecars)
     - [How does builder to proposer payment work?](#how-does-builder-to-proposer-payment-work)
-    - [How does same slot unbundling happen? (common case)](#how-does-same-slot-unbundling-happen-common-case)
-    - [What if builder sees  proposer equivocate?](#what-if-builder-sees--proposer-equivocate)
+    - [Should the builder worry about same slot unbundling?](#should-the-builder-worry-about-same-slot-unbundling)
+    - [What if builder sees proposer equivocate?](#what-if-builder-sees-proposer-equivocate)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 

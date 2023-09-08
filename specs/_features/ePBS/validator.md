@@ -24,6 +24,7 @@
       - [Constructing payload attestation](#constructing-payload-attestation)
         - [Prepare payload attestation message](#prepare-payload-attestation-message)
       - [Broadcast payload attestation](#broadcast-payload-attestation)
+  - [Design Rationale](#design-rationale)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -54,8 +55,7 @@ The Engine API may be used to implement it with an external execution engine.
 
 #### `get_execution_inclusion_list`
 
-Given the `parent_block_hash`, `get_execution_inclusion_list` returns `GetInclusionListResponse` with the most recent version of
-the inclusion list based on the parent block hash.
+Given the `parent_block_hash`, `get_execution_inclusion_list` returns `GetInclusionListResponse` with the most recent version of the inclusion list based on the parent block hash.
 
 ```python
 class GetInclusionListResponse(container)
@@ -75,14 +75,13 @@ def get_execution_inclusion_list(self: ExecutionEngine, parent_block_hash: Root)
 
 All validator responsibilities remain unchanged other than those noted below. Namely, proposer normal block production switched to a new `BeaconBlockBody`.
 Proposer with additional duty to construct and broadcast `InclusionList` alongside `SignedBeaconBlock`.
-Attester by chance with an additional duty to be part of PTC committee and broadcast `PayloadAttestationMessage`.
+Attester with an additional duty to be part of PTC committee and broadcast `PayloadAttestationMessage`.
 
 ## Validator assignment
 
-A validator can get PTC committee assignments for a given slot using the following helper via `get_ptc_committee_assignment(state, epoch, validator_index)` where `epoch <= next_epoch`.
+A validator can get PTC committee assignments for a given slot using the following helper via `get_ptc_assignment(state, epoch, validator_index)` where `epoch <= next_epoch`.
 
-A validator can use the following function to see if they are supposed to submit payload attestation message during a slot. 
-This function can only be run with a `state, slot` pair. This allows to be called with any state.  
+A validator can use the following function to see if they are supposed to submit payload attestation message during a slot across an epoch.
 PTC committee selection is only stable within the context of the current and next epoch.
 
 ```python
@@ -91,10 +90,10 @@ def get_ptc_assignment(state: BeaconState,
                              validator_index: ValidatorIndex
                              ) -> Optional[Tuple[Sequence[ValidatorIndex], Slot]]:
     """
-    Return the ptc committee assignment in the ``epoch`` for ``validator_index``.
+    Return the ptc committee assignment in the ``slot`` for ``validator_index``.
     ``assignment`` returned is a tuple of the following form:
-        * ``assignment[0]`` is the list of validators in the committee
-        * ``assignment[1]`` is the slot at which the committee is assigned
+        * ``assignment[0]`` is the list of validators in the ptc
+        * ``assignment[1]`` is the slot at which the ptc is assigned
     Return None if no assignment.
     """
     next_epoch = Epoch(get_current_epoch(state) + 1)
@@ -113,34 +112,36 @@ def get_ptc_assignment(state: BeaconState,
 ### Lookahead
 
 The beacon chain shufflings are designed to provide a minimum of 1 epoch lookahead
-on the validator's upcoming committee assignments for attesting dictated by the shuffling and slot.
-Note that this lookahead does not apply to proposing, which must be checked during the epoch in question.
+on the validator's upcoming ptc assignments for attesting dictated by the shuffling and slot.
 
-`get_ptc_assignment` should be called at the start of each epoch
-to get the assignment for the next epoch (`current_epoch + 1`).
+[New in ePBS]
+
+`get_ptc_assignment` should be called at the start of each epoch to get the assignment for the next epoch (`current_epoch + 1`).
 A validator should plan for future assignments by noting their assigned ptc committee
 slot and planning to participate in the ptc committee subnet.
 
-Specifically a validator should:
+[Modified in MaxEB]
+
+a validator should:
 * Find peers of the pubsub topic `beacon_attestation_{subnet_id}`.
-    * If the validator is assigned to be an aggregator for the slot (see `is_aggregator()`) [Modified in MaxEB], then subscribe to the topic.
+    * If the validator is assigned to be an aggregator for the slot (see `is_aggregator()`)[Modified in MaxEB], then subscribe to the topic.
 
 ### Inclusion list proposal
 
 ePBS introduces forward inclusion list. The detail design is described in this [post](https://ethresear.ch/t/no-free-lunch-a-new-inclusion-list-design/16389)
-Proposer is introduced to construct and broadcast `InclusionList` alongside `SignedBeaconBlock`.
-- Proposer for slot `N` submits `SignedBeaconBlock` and in parallel submits `InclusionList` to be included at the beginning of slot `N+1`.
-- Within `InclusionList`, `Transactions` are list of transactions that the proposer wants to include at the beginning of slot `N+1`.
-- Within `inclusionList`, `Summaries` are lists consisting on addresses sending those transactions and their gas limits. The summaries are signed by the proposer.
-- Proposer is allowed to send many of these pairs that aren't committed to its beacon block so no double proposing slashing is involved.
+Proposer must construct and broadcast `InclusionList` alongside `SignedBeaconBlock`.
+- Proposer for slot `N` submits `SignedBeaconBlock` and in parallel submits `InclusionList` to be included at the beginning of slot `N+1` builder.
+- Within `InclusionList`, `Transactions` are list of transactions that the proposer wants to include at the beginning of slot `N+1` builder.
+- Within `inclusionList`, `Summaries` are lists consisting on addresses sending those transactions and their gas limits. The summaries are signed by the proposer `N`.
+- Proposer may  send many of these pairs that aren't committed to its beacon block so no double proposing slashing is involved.
 
 #### Constructing the inclusion list
 
-To obtain an inclusion, a block proposer building a block on top of a `state` must take the following actions:
+To obtain an inclusion list, a block proposer building a block on top of a `state` must take the following actions:
 
 1. Retrieve inclusion list from execution layer by calling `get_execution_inclusion_list`.
 
-2. Call `build_inclusion_list` to get `InclusionList`.
+2. Call `build_inclusion_list` to build `InclusionList`.
 
 ```python
 def build_inclusion_list(state: BeaconState, inclusion_list_response: GetInclusionListResponse, block_slot: Slot, privkey: int) -> InclusionList:
@@ -149,6 +150,8 @@ def build_inclusion_list(state: BeaconState, inclusion_list_response: GetInclusi
     signed_inclusion_list_summary = SignedInclusionListSummary(summary=inclusion_list_summary, signature=signature)
     return InclusionList(summaries=signed_inclusion_list_summary, transactions=inclusion_list_response.transactions)
 ```
+
+In order to get inclusion list summary signature, the proposer will call `get_inclusion_list_summary_signature`.
 
 ```python
 def get_inclusion_list_summary_signature(state: BeaconState, inclusion_list_summary: InclusionListSummary, block_slot: Slot, privkey: int) -> BLSSignature:
@@ -159,22 +162,22 @@ def get_inclusion_list_summary_signature(state: BeaconState, inclusion_list_summ
 
 #### Broadcast inclusion list
 
-Finally, the validator broadcasts inclusion list to the inclusion list subnet, the `inclusion_list` pubsub topic.
+Finally, the proposer broadcasts `inclusion_list` to the inclusion list subnet, the `inclusion_list` pubsub topic.
 
 ### Block proposal
 
 #### Constructing the new `signed_execution_payload_header_envelope` field in  `BeaconBlockBody`
 
 To obtain `signed_execution_payload_header_envelope`, a block proposer building a block on top of a `state` must take the following actions:
-* Listen to the `execution_payload_header` gossip subnet
-* Filter out the bids where `signed_execution_payload_header_envelope.message.header.parent_hash` matches `state.latest_execution_payload_header.block_hash`
-* The `signed_execution_payload_header_envelope` must satisfy the verification conditions found in `process_execution_payload_header`.
+* Listen to the `execution_payload_header_envelope` gossip subnet and save accepted `signed_execution_payload_header_envelope` from the builders.
+* Filter out the header envelops where `signed_execution_payload_header_envelope.message.header.parent_hash` matches `state.latest_execution_payload_header.block_hash`
+* The `signed_execution_payload_header_envelope` must satisfy the verification conditions found in `process_execution_payload_header` using `state` advance to the latest slot.
 * Select the one bid and set `body.signed_execution_payload_header_envelope = signed_execution_payload_header_envelope`
 
 #### Constructing the new `payload_attestations` field in  `BeaconBlockBody`
 
 Up to `MAX_PAYLOAD_ATTESTATIONS`, aggregate payload attestations can be included in the block. 
-The payload attestations added must satisfy the verification conditions found in payload attestation processing.
+The payload attestations added must satisfy the verification conditions found in payload attestation processing. It must pass `process_payload_attestation`.
 `payload_attestations` can only be included in the next slot, so there's only a maximum of two possible aggregates that are valid.
 
 ### Attesting remains unchanged
@@ -212,13 +215,12 @@ A validator should create and broadcast the `payload_attestation_message` to the
 ##### Prepare payload attestation message
 If a validator is in the payload attestation committee (i.e. `is_assigned_to_payload_committee()` below returns True), 
 then the validator should prepare a `PayloadAttestationMessage` for the current slot,
-according to the logic in `get_payload_attestation_message` at `SECONDS_PER_SLOT * 3 / INTERVALS_PER_SLOT` interval.
+according to the logic in `get_payload_attestation_message` at `SECONDS_PER_SLOT * 3 / INTERVALS_PER_SLOT` interval, and broadcast it to the global `payload_attestation_message` pubsub topic.
 
 ```python
 def is_assigned_to_payload_committee(state: BeaconState,
                                   slot: Slot,
                                   validator_index: ValidatorIndex) -> bool:
-                                                     
     committe = get_ptc(state, slot)
     return validator_index in committee
 ```
@@ -241,3 +243,8 @@ def get_payload_attestation_message_signature(state: BeaconState, attestation: P
 #### Broadcast payload attestation
 
 Finally, the validator broadcasts `payload_attestation_message` to the global `payload_attestation_message` pubsub topic.
+
+
+## Design Rationale
+
+// TODO: Survey popular questions around payload attestation message and inclusion list and put them here.
