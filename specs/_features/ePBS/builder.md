@@ -105,14 +105,16 @@ def prepare_execution_payload(state: BeaconState,
     )
 ```
 
-2. Set `execution_payload`, where:
+2. Set `ExecutionPayload`, where:
 
 ```python
 def get_execution_payload(payload_id: Optional[PayloadId], execution_engine: ExecutionEngine) -> ExecutionPayload:
         return execution_engine.get_payload(payload_id).execution_payload
 ```
 
-3. Convert the `ExecutionPayload` to `ExecutionPayloadHeader` by calling `convert_payload_to_header(payload)`
+3. Builder should cache the `ExecutionPayload` and `BlobsBundle` for later use.
+
+4. Convert the `ExecutionPayload` to `ExecutionPayloadHeader` by calling `convert_payload_to_header(payload)`
 
 ```python
 def convert_payload_to_header(payload: ExecutionPayload) -> ExecutionPayloadHeader:
@@ -138,12 +140,12 @@ def convert_payload_to_header(payload: ExecutionPayload) -> ExecutionPayloadHead
         inclusion_list_exclutions_root=hash_tree_root(payload.inclusion_list_exclutions),
     )
 ```
-4. Build `ExecutionPayloadHeaderEnvelope`
+5. Build `ExecutionPayloadHeaderEnvelope`
 - Set `header` to the `ExecutionPayloadHeader` from step 3
 - Set `builder_index` to the index of the builder in the beacon state
 - Set `value` to the bid value (ie. how much Gwei builder is willing to pay the proposer if the block is included)
 
-5. Sign the `ExecutionPayloadHeaderEnvelope` with the builder's private key
+6. Sign the `ExecutionPayloadHeaderEnvelope` with the builder's private key
 
 ```python
 def get_execution_payload_header_envelope(state: BeaconState, header: ExecutionPayloadHeaderEnvelope, privkey: int) -> BLSSignature:
@@ -152,30 +154,68 @@ def get_execution_payload_header_envelope(state: BeaconState, header: ExecutionP
     return bls.Sign(privkey, signing_root)
 ```
 
-6. Build `SignedExecutionPayloadHeaderEnvelope`
+7. Build `SignedExecutionPayloadHeaderEnvelope`
 - Set `header` to the `ExecutionPayloadHeaderEnvelope` from step 4
 - Set `signature` to the `BLSSignature` from step 5
 
 #### Broadcast execution payload header envelope
 
-Finally, the validator broadcasts `execution_payload_header_envelope` to the global `execution_payload_header_envelope` pubsub topic.
+Finally, the validator broadcasts `signed_execution_payload_header_envelope` to the global `execution_payload_header_envelope` pubsub topic.
 
 ### Signed execution payload envelope construction 
 
-TBD
+#### Determine if it is safe to reveal
 
+The builder will call `get_head_block`. If the head block contains the payload header, then it is safe to reveal.
+
+#### Constructing the `SignedExecutionPayloadEnvelope`
+
+1. Build `ExecutionPayloadEnvelope`
+- Set `payload`  to the saved `execution_payload` from constructing the header.
+- Set `builder_index` to the index of the builder.
+- Set `beacon_block_root` to the head block root.
+- Set `blob_kzg_commitments` to the kzg commitments from the saved blobs bundle `blobs_bundle.kzg_commitments`.
+- Set `state_root` to the state root after processing head block.
+
+2. Sign the `ExecutionPayloadEnvelope` with the builder's private key
+
+```python
+def get_execution_payload_envelope(state: BeaconState, payload: ExecutionPayloadEnvelope, privkey: int) -> BLSSignature:
+    domain = get_domain(state, DOMAIN_BEACON_BUILDER, compute_epoch_at_slot(state.slot))
+    signing_root = compute_signing_root(payload, domain)
+    return bls.Sign(privkey, signing_root)
+```
+
+3. Build `SignedExecutionPayloadEnvelope`
+- Set `message` to the `ExecutionPayloadEnvelope` from step 1
+- Set `signature` to the `BLSSignature` from step 2
+
+#### Broadcast execution payload envelope
+
+Finally, the validator broadcasts `signed_execution_payload_envelope` to the global `execution_payload_envelope` pubsub topic.
+
+#### Broadcast blob sidecars
+
+`SignedBlobSidecars`s constructions remain the same as in the deneb spec. The builder will broadcast `SignedBlobSidecars` to the global `blob_sidecars` pubsub topic the same time as `SignedExecutionPayloadEnvelope` is broadcasted.
+Builder may broadcast `SignedBlobSidecars` before `SignedExecutionPayloadEnvelope` if it is safe to reveal. (ie. the head block contains the payload header)
 
 ## Design Decision Rationale
+
+### What are the changes with regard to blob sidecars?
+- Builder does not have to commit KZG commitments at the header phase. Given transaction contains versioned hashes, it's committed implicitly there given the transaction root.
+- This means KZG will only be known at the payload phase, and the commitments are moved from block body to the execution payload envelope.
+- Builder will gossip blob sidecars at the same time as the execution payload envelope. This is to ensure that the blob sidecars are available to the proposer when the proposer is building the block.
+- Builder may gossip the blob sidecars earlier than the execution payload.
 
 ### How does builder to proposer payment work?
 
 - Builder to proposer payment is unconditional after processing the signed execution payload header and the block remains head and canonical throughout. The builder will not lose the bid if the block is reorged.
 
-### How does same slot unbundling happen? (common case)
+### Should the builder worry about same slot unbundling?
 
 - There are cases to consider for same slot unbundling. the common case is proposer equivocate and broadcast the equivocated block to the network after builder has revealed the payload. In this case, the next slot proposer will also have to collude and build on the equivocated block.
 
-### What if builder sees  proposer equivocate?
+### What if builder sees proposer equivocate?
 
 - At the time of reveal, the builder has counted attestations for the beacon block, even if there are or not equivocations. Before the reveal deadline, proposer can not unbundle because builder has not revealed payload.
 - If the original beacon block to which the builder committed is included, then the builder doesn't lose anything, that was the original intent. So if the original block is the overwhelming winner at the time of reveal, the builder can simply reveal and be safe that if there are any equivocations anyway his block was included.
