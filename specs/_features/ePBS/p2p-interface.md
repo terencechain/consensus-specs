@@ -91,8 +91,8 @@ This topic is used to propagate execution payload envelope `SignedExecutionPaylo
 The following validations MUST pass before forwarding the `signed_execution_payload_envelope` on the network, assuming the alias `payload_envelope = signed_execution_payload_envelope.message`, `payload = payload_envelope.message.payload`:
 
 - _[IGNORE]_ The envelope's block root `payload_envelope.block_root` has been seen (via both gossip and non-gossip sources) (a client MAY queue payload for processing once the block is retrieved).
-- _[IGNORE]_ The hash tree root of the `payload` in `payload_envelope` matches the hash tree root of a payload header received previously on the `beacon_block` topic.
-- _[IGNORE]_ The builder index of the `payload_envelope` matches the payload header received previously on the `beacon_block` topic.
+- _[REJECT]_ The hash tree root of the `payload` in `payload_envelope` matches the hash tree root of a payload header received previously on the `beacon_block` topic.
+- _[REJECT]_ The builder index of the `payload_envelope` matches the payload header received previously on the `beacon_block` topic.
 - _[REJECT]_ The builder signature, `signed_execution_payload_envelope.signature`, is valid with respect to the builder's public key.
 
 ###### `payload_attestation_message`
@@ -102,8 +102,8 @@ This topic is used to propagate signed payload attestation message.
 The following validations MUST pass before forwarding the `payload_attestation_message` on the network, assuming the alias `data = payload_attestation_message.data`:
 
 - _[IGNORE]_ `data.slot` is within the last `ATTESTATION_PROPAGATION_SLOT_RANGE` slots (with a MAXIMUM_GOSSIP_CLOCK_DISPARITY allowance) -- i.e. `data.slot` + `ATTESTATION_PROPAGATION_SLOT_RANGE` >= `current_slot` >= `data.slot` (a client MAY queue future aggregates for processing at the appropriate slot).
-- _[IGNORE]_ The attestation's `data.block_root` has been seen (via both gossip and non-gossip sources) (a client MAY queue attestation for processing once the block is retrieved. Note a client might want to request payload after).
-- _[REJECT]_ The validator index is within the payload committee in `get_ptc(state, slot)`.
+- _[IGNORE]_ The attestation's `data.beacon_block_root` has been seen (via both gossip and non-gossip sources) (a client MAY queue attestation for processing once the block is retrieved. Note a client might want to request payload after).
+- _[REJECT]_ The validator index is within the payload committee in `get_ptc(state, data.slot)`.
 - _[REJECT]_ The signature of `payload_attestation_message` is valid with respect to the validator index.
     
 ###### `execution_payload_header`
@@ -125,7 +125,7 @@ This topic is used to propagate inclusion list.
 The following validations MUST pass before forwarding the `inclusion_list` on the network, assuming the alias `signed_summary = inclusion_list.summary`, `summary = signed_summary.message`:
 
 - _[REJECT]_ The inclusion list transactions `inclusion_list.transactions` length is within upperbound `MAX_TRANSACTIONS_PER_INCLUSION_LIST`.
-- _[REJECT]_ The inclusion list summery has the same length of transactions `len(summary.summary) == len(inclusion_list.transactions)`.
+- _[REJECT]_ The inclusion list summary has the same length of transactions `len(summary.summary) == len(inclusion_list.transactions)`.
 - _[REJECT]_ The summary signature, `signed_summary.signature`, is valid with respect to the `proposer_index` pubkey.
 - _[REJECT]_ The summary is proposed by the expected proposer_index for the summary's slot in the context of the current shuffling (defined by parent_root/slot). If the proposer_index cannot immediately be verified against the expected shuffling, the inclusion list MAY be queued for later processing while proposers for the summary's branch are calculated -- in such a case do not REJECT, instead IGNORE this message.
 

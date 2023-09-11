@@ -6,6 +6,7 @@
   - [Introduction](#introduction)
   - [Becoming a builder](#becoming-a-builder)
     - [Initialization](#initialization)
+    - [Deposit amount](#deposit-amount)
         - [Builder withdrawal credential](#builder-withdrawal-credential)
     - [Submit deposit](#submit-deposit)
     - [Process deposit](#process-deposit)
@@ -49,6 +50,11 @@ A builder must initialize many parameters locally before submitting a deposit an
 
 Refer key general from the phase 0 validator spec.
 
+### Deposit amount
+
+The initial deposit amount is the amount of ETH that the builder is willing to stake in order to become a builder. 
+The builder must keep a minimal balance of `BUILDER_MIN_BALANCE` to remain a builder for block building duty.
+
 ##### Builder withdrawal credential
 
 Builder Withdrawal credentials with the builder withdrawal prefix specify
@@ -81,8 +87,12 @@ No change from phase 0 validator spec.
 
 #### Constructing the `SignedExecutionPayloadHeaderEnvelope`
 
+<<<<<<< Updated upstream
 First, the builder needs to obtain an execution payload. The builder building on top of block on top of `state` must take the following actions through execution layer
 
+=======
+First, the builder needs to obtain an execution payload. The builder building on top of block on top of `s
+>>>>>>> Stashed changes
 1. Set `payload_id = prepare_execution_payload(state, pow_chain, safe_block_hash, finalized_block_hash, suggested_fee_recipient, execution_engine)`, where:
   * `state` is the state object after applying `process_slots(state, slot)` transition to the resulting state of the parent block processing
   * `safe_block_hash` is the return value of the `get_safe_execution_payload_hash(store: Store)` function call
@@ -165,20 +175,21 @@ def get_execution_payload_header_envelope(state: BeaconState, header: ExecutionP
 
 #### Broadcast execution payload header envelope
 
-Finally, the validator broadcasts `signed_execution_payload_header_envelope` to the global `execution_payload_header_envelope` pubsub topic.
+Finally, the validator broadcasts `signed_execution_payload_header_envelope` to the `execution_payload_header_envelope` pubsub topic.
 
 ### Signed execution payload envelope construction 
 
 #### Determine if it is safe to reveal
 
-The builder will call `get_head_block`. If the head block contains the payload header, then it is safe to reveal.
+The builder should reveal if it observes the following conditions:
+- The block containing the payload header is valid
 
 #### Constructing the `SignedExecutionPayloadEnvelope`
 
 1. Build `ExecutionPayloadEnvelope`
 - Set `payload`  to the saved `execution_payload` from constructing the header.
 - Set `builder_index` to the index of the builder.
-- Set `beacon_block_root` to the head block root.
+- Set `beacon_block_root` to the block root of the block containing the payload header.
 - Set `blob_kzg_commitments` to the kzg commitments from the saved blobs bundle `blobs_bundle.kzg_commitments`.
 - Set `state_root` to the state root after processing head block.
 
@@ -219,6 +230,7 @@ Builder may broadcast `SignedBlobSidecars` before `SignedExecutionPayloadEnvelop
 ### Should the builder worry about same slot unbundling?
 
 - There are cases to consider for same slot unbundling. the common case is proposer equivocate and broadcast the equivocated block to the network after builder has revealed the payload. In this case, the next slot proposer will also have to collude and build on the equivocated block.
+- Besides the above, a vast majority of the committee attesters would also have voted for the previous head.
 
 ### What if builder sees proposer equivocate?
 
