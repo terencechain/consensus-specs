@@ -81,7 +81,7 @@ No change from phase 0 validator spec.
 
 #### Constructing the `SignedExecutionPayloadHeaderEnvelope`
 
-First, the builder need obtain an execution payload. The builder building on top of block on top of `state` must ake the following actions through execution layer
+First, the builder needs to obtain an execution payload. The builder building on top of block on top of `state` must take the following actions through execution layer
 
 1. Set `payload_id = prepare_execution_payload(state, pow_chain, safe_block_hash, finalized_block_hash, suggested_fee_recipient, execution_engine)`, where:
   * `state` is the state object after applying `process_slots(state, slot)` transition to the resulting state of the parent block processing
@@ -197,7 +197,7 @@ def get_execution_payload_envelope(state: BeaconState, payload: ExecutionPayload
 
 #### Broadcast execution payload envelope
 
-Finally, the validator broadcasts `signed_execution_payload_envelope` to the global `execution_payload_envelope` pubsub topic.
+Finally, the builder broadcasts `signed_execution_payload_envelope` to the global `execution_payload_envelope` pubsub topic.
 
 #### Broadcast blob sidecars
 
