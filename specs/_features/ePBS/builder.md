@@ -87,17 +87,14 @@ No change from phase 0 validator spec.
 
 #### Constructing the `SignedExecutionPayloadHeaderEnvelope`
 
-<<<<<<< Updated upstream
 First, the builder needs to obtain an execution payload. The builder building on top of block on top of `state` must take the following actions through execution layer
 
-=======
-First, the builder needs to obtain an execution payload. The builder building on top of block on top of `s
->>>>>>> Stashed changes
-1. Set `payload_id = prepare_execution_payload(state, pow_chain, safe_block_hash, finalized_block_hash, suggested_fee_recipient, execution_engine)`, where:
+1. Set `payload_id = prepare_execution_payload(state, pow_chain, safe_block_hash, finalized_block_hash, suggested_fee_recipient, inclusion_list_summary, execution_engine)`, where:
   * `state` is the state object after applying `process_slots(state, slot)` transition to the resulting state of the parent block processing
   * `safe_block_hash` is the return value of the `get_safe_execution_payload_hash(store: Store)` function call
   * `finalized_block_hash` is the hash of the latest finalized execution payload (`Hash32()` if none yet finalized)
   * `suggested_fee_recipient` is the value suggested to be used for the `fee_recipient` field of the builder
+  * `inclusion_list_summary` is the inclusion list summary of the builder wanting to include in the payload
 
 
 ```python
@@ -105,12 +102,14 @@ def prepare_execution_payload(state: BeaconState,
                               safe_block_hash: Hash32,
                               finalized_block_hash: Hash32,
                               suggested_fee_recipient: ExecutionAddress,
+                              inclusion_list_summary: List[InclusionListSummaryEntry, MAX_TRANSACTIONS_PER_INCLUSION_LIST],
                               execution_engine: ExecutionEngine) -> Optional[PayloadId]:
     # Set the forkchoice head and initiate the payload build process
     payload_attributes = PayloadAttributes(
         timestamp=compute_timestamp_at_slot(state, state.slot),
         prev_randao=get_randao_mix(state, get_current_epoch(state)),
         suggested_fee_recipient=suggested_fee_recipient,
+        inclusion_list_summary=inclusion_list_summary,
     )
     return execution_engine.notify_forkchoice_updated(
         head_block_hash=parent_hash,
