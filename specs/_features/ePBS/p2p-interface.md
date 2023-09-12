@@ -21,6 +21,7 @@
         - [ExecutionPayloadEnvelopeByRoot v1](#executionpayloadenvelopebyroot-v1)
         - [NetworkBlockByRange v1](#networkblockbyrange-v1)
         - [NetworkBlockByRoot v1](#networkblockbyroot-v1)
+  - [Design rationale](#design-rationale)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -54,6 +55,8 @@ Some gossip meshes are upgraded in the fork of ePBS to support upgraded types.
 Topics follow the same specification as in prior upgrades.
 
 The `beacon_block` topic is modified to also support block with signed execution header and new topics are added per table below.
+
+The specification around the creation, validation, and dissemination of messages has not changed from the Capella document unless explicitly noted here.
 
 The derivation of the `message-id` remains stable.
 
@@ -124,6 +127,14 @@ This topic is used to propagate inclusion list.
 
 The following validations MUST pass before forwarding the `inclusion_list` on the network, assuming the alias `signed_summary = inclusion_list.summary`, `summary = signed_summary.message`:
 
+- _[IGNORE]_ The inclusion list is not from a future slot (with a `MAXIMUM_GOSSIP_CLOCK_DISPARITY` allowance) --
+  i.e. validate that `inclusion_list.slot <= current_slot`
+  (a client MAY queue future blocks for processing at the appropriate slot).
+- _[IGNORE]_ The inclusion list is not older than min slots for inclusion list request --
+  i.e. validate that `inclusion_list.slot >= current_slot - MIN_SLOTS_FOR_INCLUSION_LIST_REQUEST`
+  (a client MAY queue future blocks for processing at the appropriate slot).
+- _[IGNORE]_ The inclusion list is the first inclusion list with valid signature received for the proposer for the slot, `inclusion_list.slot`.
+  (a client MAY gossip multiple inclusion list from the same validator for the same slot).
 - _[REJECT]_ The inclusion list transactions `inclusion_list.transactions` length is within upperbound `MAX_TRANSACTIONS_PER_INCLUSION_LIST`.
 - _[REJECT]_ The inclusion list summary has the same length of transactions `len(summary.summary) == len(inclusion_list.transactions)`.
 - _[REJECT]_ The summary signature, `signed_summary.signature`, is valid with respect to the `proposer_index` pubkey.
@@ -258,3 +269,11 @@ NetworkBlockByRoot is primarily used to recover recent blocks and payloads (e.g.
 Clients must respond execution payloads alongside the blocks if available.
 
 Clients must respond null execution payload if not available.
+
+## Design rationale
+
+Why is it proposer may send multiple inclusion lists? Why not just one per slot?
+
+Proposers may submit multiple inclusion lists, providing validators with plausible deniability and eliminating a data availability attack route. 
+This concept stems from the "no free lunch IL design" which lets proposers send multiple ILs. The idea is that since only one IL is eventually chosen from many, 
+its content can't be relied upon for data availability due to the presence of multiple options.
