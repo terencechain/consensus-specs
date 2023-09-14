@@ -89,13 +89,15 @@ No change from phase 0 validator spec.
 
 First, the builder needs to obtain an execution payload. The builder building on top of block on top of `state` must take the following actions through execution layer
 
+The builder keeps track of the latest valid `inclusion_list_summary` over gossip.
+In the event of skip or empty slots, the builder will reuse the inclusion list summary received from the last full block's slot.
+
 1. Set `payload_id = prepare_execution_payload(state, pow_chain, safe_block_hash, finalized_block_hash, suggested_fee_recipient, inclusion_list_summary, execution_engine)`, where:
   * `state` is the state object after applying `process_slots(state, slot)` transition to the resulting state of the parent block processing
   * `safe_block_hash` is the return value of the `get_safe_execution_payload_hash(store: Store)` function call
   * `finalized_block_hash` is the hash of the latest finalized execution payload (`Hash32()` if none yet finalized)
   * `suggested_fee_recipient` is the value suggested to be used for the `fee_recipient` field of the builder
   * `inclusion_list_summary` is the inclusion list summary of the builder wanting to include in the payload
-
 
 ```python
 def prepare_execution_payload(state: BeaconState,

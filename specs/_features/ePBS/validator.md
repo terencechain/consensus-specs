@@ -25,6 +25,7 @@
         - [Prepare payload attestation message](#prepare-payload-attestation-message)
       - [Broadcast payload attestation](#broadcast-payload-attestation)
   - [Design Rationale](#design-rationale)
+    - [What is the honest behavior to build on top of a skip slot for inclusion list?](#what-is-the-honest-behavior-to-build-on-top-of-a-skip-slot-for-inclusion-list)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -139,9 +140,12 @@ Proposer must construct and broadcast `InclusionList` alongside `SignedBeaconBlo
 
 To obtain an inclusion list, a block proposer building a block on top of a `state` must take the following actions:
 
-1. Retrieve inclusion list from execution layer by calling `get_execution_inclusion_list`.
+1. Check if the previous slot is skipped. If `state.latest_execution_payload_header.time_stamp` is from previous slot.
+    * If it's skipped, the proposer should not propose an inclusion list. It can ignore rest of the steps.
 
-2. Call `build_inclusion_list` to build `InclusionList`.
+2. Retrieve inclusion list from execution layer by calling `get_execution_inclusion_list`.
+
+3. Call `build_inclusion_list` to build `InclusionList`.
 
 ```python
 def build_inclusion_list(state: BeaconState, inclusion_list_response: GetInclusionListResponse, block_slot: Slot, privkey: int) -> InclusionList:
@@ -247,4 +251,9 @@ Finally, the validator broadcasts `payload_attestation_message` to the global `p
 
 ## Design Rationale
 
-// TODO: Survey popular questions around payload attestation message and inclusion list and put them here.
+### What is the honest behavior to build on top of a skip slot for inclusion list?
+The proposer shouldn't propose an inclusion list on top of a skip slot. 
+If the payload for block N isn't revealed, the summaries and transactions for slot N-1 remain valid. 
+The slot N+1 proposer can't submit a new IL, and any attempt will be ignored. 
+The builder for N+1 must adhere to the N-1 summary. 
+If k consecutive slots lack payloads, the next full slot must still follow the N-1 inclusion list.
