@@ -17,15 +17,16 @@
     - [Block proposal](#block-proposal)
       - [Constructing the new `signed_execution_payload_header_envelope` field in  `BeaconBlockBody`](#constructing-the-new-signed_execution_payload_header_envelope-field-in--beaconblockbody)
       - [Constructing the new `payload_attestations` field in  `BeaconBlockBody`](#constructing-the-new-payload_attestations-field-in--beaconblockbody)
-    - [Attesting remains unchanged](#attesting-remains-unchanged)
-    - [Attestation aggregation](#attestation-aggregation)
       - [Aggregation selection](#aggregation-selection)
     - [Payload timeliness attestation](#payload-timeliness-attestation)
       - [Constructing payload attestation](#constructing-payload-attestation)
         - [Prepare payload attestation message](#prepare-payload-attestation-message)
       - [Broadcast payload attestation](#broadcast-payload-attestation)
+    - [Attesting](#attesting)
+    - [Attestation aggregation](#attestation-aggregation)
   - [Design Rationale](#design-rationale)
     - [What is the honest behavior to build on top of a skip slot for inclusion list?](#what-is-the-honest-behavior-to-build-on-top-of-a-skip-slot-for-inclusion-list)
+    - [Why skip the attestation if you are assigned to PTC?](#why-skip-the-attestation-if-you-are-assigned-to-ptc)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -184,10 +185,6 @@ Up to `MAX_PAYLOAD_ATTESTATIONS`, aggregate payload attestations can be included
 The payload attestations added must satisfy the verification conditions found in payload attestation processing. It must pass `process_payload_attestation`.
 `payload_attestations` can only be included in the next slot, so there's only a maximum of two possible aggregates that are valid.
 
-### Attesting remains unchanged
-
-### Attestation aggregation
-
 Some validators are selected to locally aggregate attestations with a similar `attestation_data` to their constructed `attestation` for the assigned `slot`.
 
 #### Aggregation selection
@@ -248,6 +245,14 @@ def get_payload_attestation_message_signature(state: BeaconState, attestation: P
 
 Finally, the validator broadcasts `payload_attestation_message` to the global `payload_attestation_message` pubsub topic.
 
+### Attesting
+
+If you are assigned to PTC `is_assigned_to_payload_committee(state, slot, validtor_index)==true`, then you can skip attesting at `slot`.
+The attestation will not be gaining any rewards and will be dropped on the gossip network.
+
+### Attestation aggregation
+
+Even if you skip attesting because of PTC, you should still aggregate attestations for the assigned slot. if `is_aggregator==true`. This is the honest behavior.
 
 ## Design Rationale
 
@@ -257,3 +262,11 @@ If the payload for block N isn't revealed, the summaries and transactions for sl
 The slot N+1 proposer can't submit a new IL, and any attempt will be ignored. 
 The builder for N+1 must adhere to the N-1 summary. 
 If k consecutive slots lack payloads, the next full slot must still follow the N-1 inclusion list.
+
+### Why skip the attestation if you are assigned to PTC?
+
+PTC validators are selected as the first index from each beacon committee, excluding builders. 
+These validators receive a full beacon attestation reward when they correctly identify the payload reveal status. 
+Specifically, if they vote for "full" and the payload is included, or vote for "empty" and the payload is excluded.
+Attestations directed at the CL block from these validators are disregarded, eliminating the need for broadcasting. 
+This does not apply if you are an aggregator.
