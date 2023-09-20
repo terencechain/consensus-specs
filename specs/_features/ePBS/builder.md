@@ -98,6 +98,7 @@ In the event of skip or empty slots, the builder will reuse the inclusion list s
   * `finalized_block_hash` is the hash of the latest finalized execution payload (`Hash32()` if none yet finalized)
   * `suggested_fee_recipient` is the value suggested to be used for the `fee_recipient` field of the builder
   * `inclusion_list_summary` is the inclusion list summary of the builder wanting to include in the payload
+  * `head_root` is the head root of the beacon chain from the perspective of the builder.
 
 ```python
 def prepare_execution_payload(state: BeaconState,
@@ -105,6 +106,7 @@ def prepare_execution_payload(state: BeaconState,
                               finalized_block_hash: Hash32,
                               suggested_fee_recipient: ExecutionAddress,
                               inclusion_list_summary: List[InclusionListSummaryEntry, MAX_TRANSACTIONS_PER_INCLUSION_LIST],
+                              head_root: Root,
                               execution_engine: ExecutionEngine) -> Optional[PayloadId]:
     # Set the forkchoice head and initiate the payload build process
     payload_attributes = PayloadAttributes(
@@ -114,7 +116,7 @@ def prepare_execution_payload(state: BeaconState,
         inclusion_list_summary=inclusion_list_summary,
     )
     return execution_engine.notify_forkchoice_updated(
-        head_block_hash=parent_hash,
+        head_block_hash=get_blockhash(state, head_root),
         safe_block_hash=safe_block_hash,
         finalized_block_hash=finalized_block_hash,
         payload_attributes=payload_attributes,
