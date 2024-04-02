@@ -44,7 +44,6 @@
     - [`get_indexed_payload_attestation`](#get_indexed_payload_attestation)
 - [Beacon chain state transition function](#beacon-chain-state-transition-function)
   - [Block processing](#block-processing)
-    - [Modified `process_withdrawals`](#modified-process_withdrawals)
     - [New `verify_execution_payload_header_signature`](#new-verify_execution_payload_header_signature)
     - [New `process_execution_payload_header`](#new-process_execution_payload_header)
     - [Modified `process_operations`](#modified-process_operations)
@@ -203,7 +202,7 @@ class SignedInclusionListSummary(Container):
 
 ```python
 class InclusionList(Container)
-    summary: SignedInclusionListSummary
+    signed_summary: SignedInclusionListSummary
     slot: Slot
     transactions: List[Transaction, MAX_TRANSACTIONS_PER_INCLUSION_LIST]
 ```
@@ -265,17 +264,20 @@ class ExecutionPayload(Container):
 
 #### `ExecutionPayloadHeader`
 
-**Note:** The `ExecutionPayloadHeader` is modified to only contain the block hash of the committed `ExecutionPayload` in addition to the builder's payment information.
+**Note:** The `ExecutionPayloadHeader` is modified to only contain the block hash of the committed `ExecutionPayload` in addition to the builder's payment information and KZG commitments root to verify the inclusion proofs. 
 
 ```python
 class ExecutionPayloadHeader(Container):
+    parent_block_root: Root
     block_hash: Hash32
     builder_index: ValidatorIndex
+    slot: Slot
     value: Gwei
+    blob_kzg_commitments_root: Root
 ```
 
 #### `BeaconState`
-*Note*: the beacon state is modified to store a signed latest execution payload header and to track the last withdrawals honored in the CL. It is also modified to no longer store the full last execution payload header but rather only the last block hash and the last slot that was full, that is in which there were both consensus and execution blocks included. 
+*Note*: the beacon state is modified to store a signed latest execution payload header. It is also modified to no longer store the full last execution payload header but rather only the last block hash and the last slot that was full, that is in which there were both consensus and execution blocks included. 
 
 ```python
 class BeaconState(Container):
@@ -326,7 +328,6 @@ class BeaconState(Container):
     latest_block_hash: Hash32 # [New in ePBS]
     latest_full_slot: Slot # [New in ePBS]
     signed_execution_payload_header: SignedExecutionPayloadHeader # [New in ePBS]
-    last_withdrawals_root: Root # [New in ePBS]
 ```
 
 ## Helper functions
@@ -444,43 +445,12 @@ The post-state corresponding to a pre-state `state` and a signed execution paylo
 ```python
 def process_block(state: BeaconState, block: BeaconBlock) -> None:
     process_block_header(state, block) #
-    process_withdrawals(state) # [Modified in ePBS]
+    # removed process_withdrawals(state, block.body.execution_payload) [Removed in ePBS]
     process_execution_payload_header(state, block) # [Modified in ePBS, removed process_execution_payload]
     process_randao(state, block.body)
     process_eth1_data(state, block.body)
     process_operations(state, block.body)  # [Modified in ePBS]
     process_sync_aggregate(state, block.body.sync_aggregate)
-```
-
-#### Modified `process_withdrawals`
-**Note:** This is modified to take only the `state` parameter. The payload is required to honor these withdrawals. 
-
-```python
-def process_withdrawals(state: BeaconState) -> None:
-    ## return early if the parent block was empty
-    if !is_parent_block_full(state):
-        return 
-
-    withdrawals = get_expected_withdrawals(state)
-    state.last_withdrawals_root = hash_tree_root(withdrawals)
-    for withdrawal in withdrawals:
-        decrease_balance(state, withdrawal.validator_index, withdrawal.amount)
-
-    # Update the next withdrawal index if this block contained withdrawals
-    if len(withdrawals) != 0:
-        latest_withdrawal = withdrawals[-1]
-        state.next_withdrawal_index = WithdrawalIndex(latest_withdrawal.index + 1)
-
-    # Update the next validator index to start the next withdrawal sweep
-    if len(withdrawals) == MAX_WITHDRAWALS_PER_PAYLOAD:
-        # Next sweep starts after the latest withdrawal's validator index
-        next_validator_index = ValidatorIndex((withdrawals[-1].validator_index + 1) % len(state.validators))
-        state.next_withdrawal_validator_index = next_validator_index
-    else:
-        # Advance sweep by the max length of the sweep if there was not a full set of withdrawals
-        next_index = state.next_withdrawal_validator_index + MAX_VALIDATORS_PER_WITHDRAWALS_SWEEP
-        next_validator_index = ValidatorIndex(next_index % len(state.validators))
-        state.next_withdrawal_validator_index = next_validator_index
 ```
 
 #### New `verify_execution_payload_header_signature`
@@ -501,11 +471,18 @@ def process_execution_payload_header(state: BeaconState, block: BeaconBlock) -> 
     # Verify the header signature
     signed_header = block.body.signed_execution_payload_header
     assert verify_execution_payload_header_signature(state, signed_header)
+
     # Check that the builder has funds to cover the bid
     header = signed_header.message
     builder_index = header.builder_index
     amount = header.value
     assert state.balances[builder_index] >= amount
+
+    # Verify that the bid is for the current slot
+    assert header.slot = block.slot
+    # Verify that the bid is for the right parent block
+    assert header.parent_block_root = block.parent_root
+
     # Transfer the funds from the builder to the proposer
     decrease_balance(state, builder_index, amount)
     increase_balance(state, block.proposer_index, amount)
@@ -650,6 +627,8 @@ def process_execution_payload(state: BeaconState, signed_envelope: SignedExecuti
     assert verify_execution_envelope_signature(state, signed_envelope)
     envelope = signed_envelope.message
     payload = envelope.payload
+    # Process withdrawals 
+    process_withdrawals(state, payload)
     # Verify inclusion list proposer
     proposer_index = envelope.inclusion_list_proposer_index
     assert proposer_index == state.previous_inclusion_list_proposer
@@ -665,7 +644,7 @@ def process_execution_payload(state: BeaconState, signed_envelope: SignedExecuti
     # Verify consistency with the committed header
     committed_header = state.signed_execution_payload_header.message
     assert committed_header.block_hash == payload.block_hash 
-    # Verify consistency with the envelope
+    assert committed_header.blob_kzg_commitments_root == hash_tree_root(envelope.blob_kzg_commitments)
     assert envelope.builder_index == committed_header.builder_index
     # Verify consistency of the parent hash with respect to the previous execution payload
     assert payload.parent_hash == state.latest_block_hash
