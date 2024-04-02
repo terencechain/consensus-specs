@@ -305,7 +305,34 @@ def get_blockhash(store: Store, root: Root) -> Hash32:
         return hash(store.execution_payload_states[root].latest_block_header)
     return hash(store.block__states[root].latest_block_header)
 ```
-    
+   
+## Engine APIs
+
+### New `NewInclusionListRequest`
+
+```python
+@dataclass
+class NewInclusionListRequest(object):
+    inclusion_list: List[Transaction, MAX_TRANSACTIONS_PER_INCLUSION_LIST]
+    summary: List[ExecutionAddress, MAX_TRANSACTIONS_PER_INCLUSION_LIST]
+    parent_block_hash: Hash32
+```
+  
+
+### New `notify_new_inclusion_list`
+
+```python
+def notify_new_inclusion_list(self: ExecutionEngine,
+                              inclusion_list_request: NewInclusionListRequest) -> bool:
+    """
+    Return ``True`` if and only if the transactions in the inclusion list can be succesfully executed
+    starting from the execution state corresponding to the `parent_block_hash` in the inclusion list 
+    summary. The execution engine also checks that the total gas limit is less or equal that
+    ```MAX_GAS_PER_INCLUSION_LIST``, and the transactions in the list of transactions correspond to the signed summary
+    """
+    ...
+```
+ 
 ## Updated fork-choice handlers
 
 ### `on_block`
