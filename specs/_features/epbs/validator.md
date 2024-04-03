@@ -1,3 +1,7 @@
+# ePBS -- Honest Validator
+
+This document represents the changes and additions to the Honest validator guide included in the ePBS fork. 
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
@@ -30,30 +34,13 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-# ePBS -- Honest Validator
-
-**Notice**: This document is a work-in-progress for researchers and implementers.
-
-## Introduction
-
-This document represents the changes to be made in the code of an "honest validator" to implement ePBS.
-
-## Prerequisites
-
-This document is an extension of the Deneb -- Honest Validator guide.
-All behaviors and definitions defined in this document, and documents it extends, carry over unless explicitly noted or overridden.
-
-All terminology, constants, functions, and protocol mechanics defined in the updated Beacon Chain doc of ePBS. are requisite for this document and used throughout.
-Please see related Beacon Chain doc before continuing and use them as a reference throughout.
-
 ## Protocols
 
 ### `ExecutionEngine`
 
 *Note*: `get_execution_inclusion_list` function is added to the `ExecutionEngine` protocol for use as a validator.
 
-The body of this function is implementation dependent.
-The Engine API may be used to implement it with an external execution engine.
+The body of this function is implementation dependent. The Engine API may be used to implement it with an external execution engine.
 
 #### `get_execution_inclusion_list`
 
