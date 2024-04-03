@@ -595,6 +595,12 @@ def process_attestation(state: BeaconState, attestation: Attestation) -> None:
 ##### Payload Attestations
 
 ```python
+def remove_flag(flags: ParticipationFlags, flag_index: int) -> ParticipationFlags:
+    flag = PartitipationFlags(2**flag_index)
+    return flags & ~flag
+``` 
+
+```python
 def process_payload_attestation(state: BeaconState, payload_attestation: PayloadAttestation) -> None:
     ## Check that the attestation is for the parent beacon block
     data = payload_attestation.data
@@ -615,20 +621,32 @@ def process_payload_attestation(state: BeaconState, payload_attestation: Payload
     # Return early if the attestation is for the wrong payload status
     payload_was_present = data.slot == state.latest_full_slot
     voted_preset = data.payload_status == PAYLOAD_PRESENT
+    proposer_reward_denominator = (WEIGHT_DENOMINATOR - PROPOSER_WEIGHT) * WEIGHT_DENOMINATOR // PROPOSER_WEIGHT
+    proposer_index = get_beacon_proposer_index(state)
     if voted_present != payload_was_present:
+        # Unset the flags in case they were set by an equivocating ptc attestation
+        proposer_penalty_numerator = 0
+        for index in indexed_payload_atterstation.attesting_indices:
+            for flag_index, weight in enumerate(PARTICIPATION_FLAG_WEIGHTS):
+                if has_flag(epoch_participation[index], flag_index):
+                    epoch_participation[index] = remove_flag(flag_index)
+                    proposer_penalty_numerator += get_base_reward(state, index) * weight
+        # Penalize the proposer
+        proposer_penalty = Gwei(proposer_penalty_numerator // proposer_reward_denominator)
+        decrease_balance(state, proposer_index, proposer_penalty)
         return
-    # Reward the proposer and set all the participation flags
+
+    # Reward the proposer and set all the participation flags in case of correct attestations
     proposer_reward_numerator = 0
     for index in indexed_payload_attestation.attesting_indices:
         for flag_index, weight in enumerate(PARTICIPATION_FLAG_WEIGHTS):
             if not has_flag(epoch_participation[index], flag_index):
                 epoch_participation[index] = add_flag(epoch_participation[index], flag_index)
-                proposer_reward_numerator += get_base_reward(state, index) * weight
+                proposer_reward_numerator += base_reward * weight
 
     # Reward proposer
-    proposer_reward_denominator = (WEIGHT_DENOMINATOR - PROPOSER_WEIGHT) * WEIGHT_DENOMINATOR // PROPOSER_WEIGHT
     proposer_reward = Gwei(proposer_reward_numerator // proposer_reward_denominator)
-    increase_balance(state, get_beacon_proposer_index(state), proposer_reward)
+    increase_balance(state, proposer_index, proposer_reward)
 ```
 
 #### New `verify_execution_payload_envelope_signature`

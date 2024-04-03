@@ -157,71 +157,38 @@ Up to `MAX_PAYLOAD_ATTESTATIONS`, aggregate payload attestations can be included
 * The payload attestations added must satisfy the verification conditions found in payload attestation gossip validation and payload attestation processing. This means
     - The `data.beacon_block_root` corresponds to `block.parent_root`.
     - The slot of the parent block is exactly one slot before the proposing slot. 
-    - The aggregated signature of the payload attestation verifies correctly. 
-
+    - The signature of the payload attestation data message verifies correctly. 
+* The proposer needs to aggregate all payload attestations with the same data into a given `PayloadAttestation` object. For this it needs to fill the `aggregation_bits` field by using the relative position of the validator indices with respect to the PTC that is obtained from `get_ptc(state, block_slot - 1)`. 
+* Proposer should only include payload attestations that are consistent with the current block they are proposing. That is, if the previous block had a payload, they should only include attestations with `payload_status = PAYLOAD_PRESENT`. Proposers are penalized for attestations that are not-consistent with their view. 
 
 ### Payload timeliness attestation
 
-Some validators are selected to submit payload timeliness attestation. The assigned `slot` for which the validator performs this role during an epoch are defined by `get_ptc(state, slot)`.
+Some validators are selected to submit payload timeliness attestation. Validators should call `get_ptc_assignment` at the beginning of an epoch to be prepared to submit their PTC attestations during the next epoch. 
 
 A validator should create and broadcast the `payload_attestation_message` to the global execution attestation subnet at `SECONDS_PER_SLOT * 3 / INTERVALS_PER_SLOT` seconds after the start of `slot`
 
-#### Constructing payload attestation
+#### Constructing a payload attestation
 
-##### Prepare payload attestation message
 If a validator is in the payload attestation committee (i.e. `is_assigned_to_payload_committee()` below returns True), 
 then the validator should prepare a `PayloadAttestationMessage` for the current slot,
 according to the logic in `get_payload_attestation_message` at `SECONDS_PER_SLOT * 3 / INTERVALS_PER_SLOT` interval, and broadcast it to the global `payload_attestation_message` pubsub topic.
 
-```python
-def is_assigned_to_payload_committee(state: BeaconState,
-                                  slot: Slot,
-                                  validator_index: ValidatorIndex) -> bool:
-    committe = get_ptc(state, slot)
-    return validator_index in committee
-```
-
-Next, the validator creates `payload_attestation_message` as follows:
-* Set `payload_attestation_data.slot = slot` where `slot` is the assigned slot.
-* Set `payload_attestation_data.beacon_block_root = block_root` where `block_root` is the head of the chain.
-* Set `payload_attestation_data.payload_revealed = True` if the `SignedExecutionPayloadEnvelope` is seen from the block builder reveal at `SECONDS_PER_SLOT * 2 / INTERVALS_PER_SLOT`, and if `ExecutionPayloadEnvelope.beacon_block_root` matches `block_root`
-    * Otherwise, set `payload_attestation_data.payload_revealed = False`.
+the validator creates `payload_attestation_message` as follows:
+* If the validator has not seen any beacon block for the assigned slot, do not submit a payload attestation. It will be ignored anyway. 
+* Set `data.beacon_block_root` be the HTR of the beacon block seen for the assigned slot
+* Set `data.slot` to be the assigned slot. 
+* Set `data.payload_status` as follows
+    - If a valid `SignedExecutionPayloadEnvelope` has been seen referencing the block `data.beacon_block_root` and the envelope has `payload_withheld = False`,  set to `PAYLOAD_PRESENT`.
+    - If a valid `SignedExecutionPayloadEnvelope` has been seen referencing the block `data.beacon_block_root` and the envelope has `payload_withheld = True`,  set to `PAYLOAD_WITHHELD`.
+    - If no valid `SignedExecutionPayloadEnvelope` has been seen referencing the block `data.beacon_block_root` set to `PAYLOAD_ABSENT`.
 * Set `payload_attestation_message.validator_index = validator_index` where `validator_index` is the validator chosen to submit. The private key mapping to `state.validators[validator_index].pubkey` is used to sign the payload timeliness attestation.
-* Set `payload_attestation_message = PayloadAttestationMessage(data=payload_attestation_data, signature=payload_attestation_signature)`, where `payload_attestation_signature` is obtained from:
+* Sign the `payload_attestation_message.data` using the helper `get_payload_attestation_message_signature`.
+
+Notice that the attester only signs the `PayloadAttestationData` and not the `validator_index` field in the message. Proposers need to aggregate these attestations as described above. 
 
 ```python
 def get_payload_attestation_message_signature(state: BeaconState, attestation: PayloadAttestationMessage, privkey: int) -> BLSSignature:
-    domain = get_domain(state, DOMAIN_PTC_ATTESTER, compute_epoch_at_slot(attestation.slot))
-    signing_root = compute_signing_root(attestation, domain)
+    domain = get_domain(state, DOMAIN_PTC_ATTESTER, compute_epoch_at_slot(attestation.data.slot))
+    signing_root = compute_signing_root(attestation.data, domain)
     return bls.Sign(privkey, signing_root)
 ```
-
-#### Broadcast payload attestation
-
-Finally, the validator broadcasts `payload_attestation_message` to the global `payload_attestation_message` pubsub topic.
-
-### Attesting
-
-Validators are assigned to PTC `is_assigned_to_payload_committee(state, slot, validtor_index)==true`, then you can skip attesting at `slot`.
-The attestation will not be gaining any rewards and will be dropped on the gossip network.
-
-### Attestation aggregation
-
-Even if you skip attesting because of PTC, you should still aggregate attestations for the assigned slot. if `is_aggregator==true`. This is the honest behavior.
-
-## Design Rationale
-
-### What is the honest behavior to build on top of a skip slot for inclusion list?
-The proposer shouldn't propose an inclusion list on top of a skip slot. 
-If the payload for block N isn't revealed, the summaries and transactions for slot N-1 remain valid. 
-The slot N+1 proposer can't submit a new IL, and any attempt will be ignored. 
-The builder for N+1 must adhere to the N-1 summary. 
-If k consecutive slots lack payloads, the next full slot must still follow the N-1 inclusion list.
-
-### Why skip the attestation if you are assigned to PTC?
-
-PTC validators are selected as the first index from each beacon committee, excluding builders. 
-These validators receive a full beacon attestation reward when they correctly identify the payload reveal status. 
-Specifically, if they vote for "full" and the payload is included, or vote for "empty" and the payload is excluded.
-Attestations directed at the CL block from these validators are disregarded, eliminating the need for broadcasting. 
-This does not apply if you are an aggregator.
