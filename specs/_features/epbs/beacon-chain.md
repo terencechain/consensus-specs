@@ -268,7 +268,7 @@ class ExecutionPayload(Container):
 
 ```python
 class ExecutionPayloadHeader(Container):
-    parent_block_root: Root
+    parent_block_hash: Hash32
     block_hash: Hash32
     builder_index: ValidatorIndex
     slot: Slot
@@ -513,7 +513,7 @@ def process_execution_payload_header(state: BeaconState, block: BeaconBlock) -> 
     # Verify that the bid is for the current slot
     assert header.slot = block.slot
     # Verify that the bid is for the right parent block
-    assert header.parent_block_root = block.parent_root
+    assert header.parent_block_hash = state.latest_block_hash
 
     # Transfer the funds from the builder to the proposer
     decrease_balance(state, builder_index, amount)
@@ -646,7 +646,7 @@ def verify_execution_payload_envelope_signature(state: BeaconState, signed_envel
 def verify_inclusion_list_summary_signature(state: BeaconState, signed_summary: SignedInclusionListSummary) -> bool:
     summary = signed_summary.message
     signing_root = compute_signing_root(summary, get_domain(state, DOMAIN_BEACON_PROPOSER))
-    proposer = state.validators[message.proposer_index]
+    proposer = state.validators[summary.proposer_index]
     return bls.Verify(proposer.pubkey, signing_root, signed_summary.signature)
 ```
 
