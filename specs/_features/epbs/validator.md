@@ -161,6 +161,9 @@ Up to `MAX_PAYLOAD_ATTESTATIONS`, aggregate payload attestations can be included
 * The proposer needs to aggregate all payload attestations with the same data into a given `PayloadAttestation` object. For this it needs to fill the `aggregation_bits` field by using the relative position of the validator indices with respect to the PTC that is obtained from `get_ptc(state, block_slot - 1)`. 
 * Proposer should only include payload attestations that are consistent with the current block they are proposing. That is, if the previous block had a payload, they should only include attestations with `payload_status = PAYLOAD_PRESENT`. Proposers are penalized for attestations that are not-consistent with their view. 
 
+#### Blobs sidecars
+The blbos sidecars are no longer broadcast by the validator, and thus their construction is not necessary. This deprecates the corresponding sections from the honest validator guide in the Deneb fork, moving them, albeit with some modifications, to the [honest Builder guide](./builder.md)
+
 ### Payload timeliness attestation
 
 Some validators are selected to submit payload timeliness attestation. Validators should call `get_ptc_assignment` at the beginning of an epoch to be prepared to submit their PTC attestations during the next epoch. 

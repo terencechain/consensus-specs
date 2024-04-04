@@ -42,6 +42,41 @@ def get_execution_payload_header_signature(state: BeaconState, header: Execution
 
 The builder assembles then `signed_exceution_payload_header = SignedExecutionPayloadHeader(message=header, signature=signature)` and broadcasts it on the `execution_payload_header` global gossip topic. 
 
+### Constructing the `BlobSidecar`s
+
+[Modified in ePBS]
+
+The `BlobSidecar` container is modified indirectly because the constant `KZG_COMMITMENT_INCLUSION_PROOF_DEPTH` is modified. Each sidecar is obtained from the modified 
+
+```python
+def get_blob_sidecars(signed_block: SignedBeaconBlock,
+                      blobs: Sequence[Blob],
+                      blob_kzg_proofs: Sequence[KZGProof]) -> Sequence[BlobSidecar]:
+    block = signed_block.message
+    block_header = BeaconBlockHeader(
+        slot=block.slot,
+        proposer_index=block.proposer_index,
+        parent_root=block.parent_root,
+        state_root=block.state_root,
+        body_root=hash_tree_root(block.body),
+    )
+    signed_block_header = SignedBeaconBlockHeader(message=block_header, signature=signed_block.signature)
+    return [
+        BlobSidecar(
+            index=index,
+            blob=blob,
+            kzg_commitment=block.body.blob_kzg_commitments[index],
+            kzg_proof=blob_kzg_proofs[index],
+            signed_block_header=signed_block_header,
+            kzg_commitment_inclusion_proof=compute_merkle_proof(
+                block.body,
+                GeneralizedIndex(KZG_GENERALIZED_INDEX_PREFIX + index),
+            ),
+        )
+        for index, blob in enumerate(blobs)
+    ]
+```
+
 ### Constructing the execution payload envelope
 
 When a valid `SignedBeaconBlock`  has been published containing a signed commitment by the builder, the builder is later expected to broadcast the corresponding `SignedExecutionPayloadEnvelope`  that fulfils this commitment. See below for a special case of an *honestly withheld payload*. 
