@@ -169,6 +169,7 @@ class ExecutionPayloadEnvelope(Container):
     beacon_block_root: Root
     blob_kzg_commitments: List[KZGCommitment, MAX_BLOB_COMMITMENTS_PER_BLOCK]
     inclusion_list_proposer_index: ValidatorIndex
+    inclusion_list_slot: Slot
     inclusion_list_signature: BLSSignature
     payload_withheld: bool
     state_root: Root
@@ -187,6 +188,7 @@ class SignedExecutionPayloadEnvelope(Container):
 ```python
 class InclusionListSummary(Container)
     proposer_index: ValidatorIndex
+    slot: Slot
     summary: List[ExecutionAddress, MAX_TRANSACTIONS_PER_INCLUSION_LIST]
 ```
 
@@ -195,6 +197,7 @@ class InclusionListSummary(Container)
 ```python
 class SignedInclusionListSummary(Container):
     message: InclusionListSummary
+    parent_block_hash: Hash32
     signature: BLSSignature
 ```
 
@@ -203,7 +206,6 @@ class SignedInclusionListSummary(Container):
 ```python
 class InclusionList(Container)
     signed_summary: SignedInclusionListSummary
-    slot: Slot
     transactions: List[Transaction, MAX_TRANSACTIONS_PER_INCLUSION_LIST]
 ```
 
@@ -324,7 +326,9 @@ class BeaconState(Container):
     historical_summaries: List[HistoricalSummary, HISTORICAL_ROOTS_LIMIT]
     # PBS
     previous_inclusion_list_proposer: ValidatorIndex # [New in ePBS]
+    previous_inclusion_list_slot: Slot # [New in ePBS]
     latest_inclusion_list_proposer: ValidatorIndex # [New in ePBS]
+    latest_inclusion_list_slot: Slot # [New in ePBS]
     latest_block_hash: Hash32 # [New in ePBS]
     latest_full_slot: Slot # [New in ePBS]
     signed_execution_payload_header: SignedExecutionPayloadHeader # [New in ePBS]
@@ -522,7 +526,7 @@ def process_execution_payload_header(state: BeaconState, block: BeaconBlock) -> 
     # Cache the inclusion list proposer if the parent block was full
     if is_parent_block_full(state):
         state.latest_inclusion_list_proposer = block.proposer_index
-
+        state.latest_inclusion_list_slot = block.slot
     # Cache the signed execution payload header 
     state.signed_execution_payload_header = signed_header
 ```
@@ -672,20 +676,23 @@ def verify_inclusion_list_summary_signature(state: BeaconState, signed_summary: 
 *Note*: `process_execution_payload` is now an independent check in state transition. It is called when importing a signed execution payload proposed by the builder of the current slot.
 
 ```python
-def process_execution_payload(state: BeaconState, signed_envelope: SignedExecutionPayloadEnvelope, execution_engine: ExecutionEngine) -> None:
+def process_execution_payload(state: BeaconState, signed_envelope: SignedExecutionPayloadEnvelope, execution_engine: ExecutionEngine, verify = True) -> None:
     # Verify signature
-    assert verify_execution_envelope_signature(state, signed_envelope)
+    if verify: 
+        assert verify_execution_envelope_signature(state, signed_envelope)
     envelope = signed_envelope.message
     payload = envelope.payload
     # Verify the withdrawals root
     assert hash_tree_root(payload.withdrawals) == state.last_withdrawals_root
-    # Verify inclusion list proposer
-    proposer_index = envelope.inclusion_list_proposer_index
-    assert proposer_index == state.previous_inclusion_list_proposer
+    # Verify inclusion list proposer and slot
+    assert envelope.inclusion_list_proposer_index == state.previous_inclusion_list_proposer
+    assert envelope.inclusion_list_slot = state.previous_inclusion_list_slot
+    assert payload.
     # Verify inclusion list summary signature
     signed_summary = SignedInclusionListSummary(
         message=InclusionListSummary(
-            proposer_index=proposer_index
+            proposer_index=envelope.inclusion_list_proposer_index
+            slot = envelope.inclusion_list_slot
             summary=payload.inclusion_list_summary)
         signature=envelope.inclusion_list_signature)
     assert verify_inclusion_list_summary_signature(state, signed_summary)
@@ -715,6 +722,8 @@ def process_execution_payload(state: BeaconState, signed_envelope: SignedExecuti
     state.latest_block_hash = payload.block_hash
     state.latest_full_slot = state.slot
     state.previous_inclusion_list_proposer = state.latest_inclusion_list_proposer
+    state.previous_inclusion_list_slot = state.latest_inclusion_list_slot
     # Verify the state root
-    assert envelope.state_root == hash_tree_root(state)
+    if verify: 
+        assert envelope.state_root == hash_tree_root(state)
 ```

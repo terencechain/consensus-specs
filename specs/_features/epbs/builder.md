@@ -22,5 +22,53 @@ Thus, builders tasks are divided in two, submitting bids, and submitting payload
 
 Builders can broadcast a payload bid for the current or the next slot's proposer to include. They produce a `SignedExecutionPayloadHeader` as follows. 
 
+Prior to constructing a payload, the builder **MUST** have a full `InclusionList` object from the proposer matching `state.previous_inclusion_list_proposer`. The signed summary for this inclusion list will be needed when revealing the full execution payload (see below). 
 1. Set `header.parent_block_hash` to the current head of the execution chain (this can be obtained from the beacon state as `state.last_block_hash`). 
-2. Construct an execution payload. This can be performed with an external execution engine with a call to Set `header.block_hash` for t
+2. Construct an execution payload. This can be performed with an external execution engine with a call to `engine_getPayloadV4`. 
+3. Set `header.block_hash` to be the block hash of the constructed payload, that is `payload.block_hash` 
+4. Set `header.builder_index`  to be the validator index of the builder performing these actions. 
+5. Set `header.slot`  to be the slot for which this bid is aimed. This slot **MUST** be either the current slot or the next slot.  
+6. Set `header.value` to be the value that the builder will pay the proposer if the bid is accepted. The builder **MUST** have balance enough to fulfill this bid. 
+7. Set `header.kzg_commitments_root` to be the `hash_tree_root`  of the `blobsbundle.commitments`  field returned by `engine_getPayloadV4`. 
+
+After building the `header`, the builder obtains a `signature` of the header by using
+
+```python
+def get_execution_payload_header_signature(state: BeaconState, header: ExecutionPayloadHeader, privkey: int) -> BLSSignature:
+    domain = get_domain(state, DOMAIN_BEACON_BUILDER, compute_epoch_at_slot(header.slot))
+    signing_root = compute_signing_root(header, domain)
+    return bls.Sign(privkey, signing_root)
+```
+
+The builder assembles then `signed_exceution_payload_header = SignedExecutionPayloadHeader(message=header, signature=signature)` and broadcasts it on the `execution_payload_header` global gossip topic. 
+
+### Constructing the execution payload envelope
+
+When a valid `SignedBeaconBlock`  has been published containing a signed commitment by the builder, the builder is later expected to broadcast the corresponding `SignedExecutionPayloadEnvelope`  that fulfils this commitment. See below for a special case of an *honestly withheld payload*. 
+
+To construct the `execution_payload_envelope` the builder must perform the following steps, we alias `header` to be the committed `ExecutionPayloadHeader` in the beacon block. 
+
+1. Set the `payload` field to be the `ExecutionPayload`  constructed when creating the corresponding bid. This payload **MUST** have the same block hash as `header.block_hash`. 
+2. Set the `builder_index`  field to be the validator index of the builder performing these steps. This field **MUST** be `header.builder_index`. 
+3. Set `beacon_block_root` to be the `hash_tree_root` of the corresponding beacon block.
+4. Set `blob_kzg_commitments`  to be the `commitments`  field of the blobs bundle constructed when constructing the bid. This field **MUST** have a `hash_tree_root` equal to `header.blob_kzg_commitments_root`.
+5. Set `inclusion_list_proposer_index` to be the `inclusion_list_summary.proposer_index` from the inclusion list used when creating the bid. 
+6. Set `inclusion_list_slot` to be the `inclusion_list_summary.slot` from the inclusion list used when creating the bid.
+7. Set the `inclusion_list_signature` to be `signed_inclusion_list_summary.signature` from the inclusion list used when creating the bid. 
+8. Set `payload_witheld` to `False`.
+
+After setting these parameters, the builder should run run `process_execution_payload(state, signed_envelope, verify=False)` and this function should not trigger an exception
+
+9. Set `state_root` to `hash_tree_root(state)`. 
+After preparing the `envelope` the builder should sign the envelope using:
+```python
+def get_execution_payload_envelope_signature(state: BeaconState, envelope: ExecutionPayloadEnvelope, privkey: int) -> BLSSignature:
+    domain = get_domain(state, DOMAIN_BEACON_BUILDER, compute_epoch_at_slot(state.slot))
+    signing_root = compute_signing_root(envelope, domain)
+    return bls.Sign(privkey, signing_root)
+```
+The builder assembles then `signed_exceution_payload_envelope = SignedExecutionPayloadEnvelope(message=envelope, signature=signature)` and broadcasts it on the `execution_payload` global gossip topic. 
+
+### Honest payload withheld messages
+
+An honest builder that has seen a `SignedBeaconBlock` referencing his signed bid, but that block was not timely and thus it is not the head of the builder's chain, may choose to withhold their execution payload. For this the builder should simply act as if it were building an empty payload, without any transactions, withdrawals, etc. Omit step 9 above and set `payload_withheld` to `True`. If the PTC sees this message and votes for it, validators will attribute a *withholding boost* to the builder, which would increase the forkchoice weight of the parent block, favouring it and preventing the builder from being charged for the bid by not revealing. 

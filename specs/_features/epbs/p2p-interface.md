@@ -116,13 +116,13 @@ This topic is used to propagate execution payload messages as `SignedExecutionPa
 The following validations MUST pass before forwarding the `signed_execution_payload_envelope` on the network, assuming the alias `envelope = signed_execution_payload_envelope.message`, `payload = payload_envelope.payload`:
 
 - _[IGNORE]_ The envelope's block root `envelope.block_root` has been seen (via both gossip and non-gossip sources) (a client MAY queue payload for processing once the block is retrieved).
-
+- _[IGNORE]_ The node has not seen another valid `SignedExecutionPayloadEnvelope` for this block root from this builder.
+ 
 Let `block` be the block with `envelope.beacon_block_root`. 
 Let `header` alias `block.body.signed_execution_payload_header.message` (notice that this can be obtained from the `state.signed_execution_payload_header`)
 - _[REJECT]_ `block` passes validation. 
 - _[REJECT]_ `envelope.builder_index == header.builder_index` 
 - _[REJECT]_ `payload.block_hash == header.block_hash`
-- _[REJECT]_ `hash_tree_root(payload.blob_kzg_commitments) == header.blob_kzg_commitments_root`
 - _[REJECT]_ The builder signature, `signed_execution_payload_envelope.signature`, is valid with respect to the builder's public key.
 
 ###### `payload_attestation_message`
@@ -133,6 +133,7 @@ The following validations MUST pass before forwarding the `payload_attestation_m
 
 - _[IGNORE]_ `data.slot` is the current slot. 
 - _[REJECT]_ `data.payload_status < PAYLOAD_INVALID_STATUS`
+- _[IGNORE]_ the `payload_attestation_message` is the first valid payload attestation message received from the validator index.
 - _[IGNORE]_ The attestation's `data.beacon_block_root` has been seen (via both gossip and non-gossip sources) (a client MAY queue attestation for processing once the block is retrieved. Note a client might want to request payload after).
 - _[REJECT]_ The validator index is within the payload committee in `get_ptc(state, data.slot)`. For the current's slot head state. 
 - _[REJECT]_ The signature of `payload_attestation_message.signature` is valid with respect to the validator index.
@@ -157,7 +158,7 @@ This topic is used to propagate inclusion lists as `InclusionList` objects.
 The following validations MUST pass before forwarding the `inclusion_list` on the network, assuming the alias `signed_summary = inclusion_list.signed_summary`, `summary = signed_summary.message`:
 
 - _[IGNORE]_ The inclusion list is for the current slot or the next slot (a client MAY queue future inclusion lists for processing at the appropriate slot).
-- _[IGNORE]_ The inclusion list is the first inclusion list with valid signature received for the proposer for the slot, `inclusion_list.slot`.
+- _[IGNORE]_ The inclusion list is the first valid inclusion list received for the proposer for the slot, `inclusion_list.slot`.
 - _[REJECT]_ The inclusion list transactions `inclusion_list.transactions` length is less or equal than `MAX_TRANSACTIONS_PER_INCLUSION_LIST`.
 - _[REJECT]_ The inclusion list summary has the same length of transactions `len(summary.summary) == len(inclusion_list.transactions)`.
 - _[REJECT]_ The summary signature, `signed_summary.signature`, is valid with respect to the `proposer_index` pubkey.
