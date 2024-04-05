@@ -395,7 +395,7 @@ def get_ptc(state: BeaconState, slot: Slot) -> Vector[ValidatorIndex, PTC_SIZE]:
     Get the ptc committee for the given ``slot``
     """
     epoch = compute_epoch_at_slot(slot)
-    committees_per_slot = bit_floor(max(get_committee_count_per_slot(state, epoch), PTC_SIZE))
+    committees_per_slot = bit_floor(min(get_committee_count_per_slot(state, epoch), PTC_SIZE))
     members_per_committee = PTC_SIZE/committees_per_slot
     
     validator_indices = [] 
