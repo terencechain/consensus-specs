@@ -8,23 +8,29 @@ Engine API changes introduced in the ePBS fork
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Structures](#structures)
-  - [ExecutionPayloadV3](#executionpayloadv3)
-  - [BlobsBundleV1](#blobsbundlev1)
+  - [ExecutionPayloadV4](#executionpayloadv4)
   - [PayloadAttributesV3](#payloadattributesv3)
+  - [InclusionListV1](#inclusionlistv1)
+  - [InclusionListStatusV1](#inclusionliststatusv1)
 - [Methods](#methods)
-  - [engine_newPayloadV3](#engine_newpayloadv3)
+  - [engine_newInclusionListV1](#engine_newinclusionlistv1)
     - [Request](#request)
     - [Response](#response)
     - [Specification](#specification)
-  - [engine_forkchoiceUpdatedV3](#engine_forkchoiceupdatedv3)
+  - [engine_newPayloadV4](#engine_newpayloadv4)
     - [Request](#request-1)
     - [Response](#response-1)
     - [Specification](#specification-1)
-  - [engine_getPayloadV3](#engine_getpayloadv3)
+  - [engine_forkchoiceUpdatedV3](#engine_forkchoiceupdatedv3)
     - [Request](#request-2)
     - [Response](#response-2)
     - [Specification](#specification-2)
+  - [engine_getPayloadV3](#engine_getpayloadv3)
+    - [Request](#request-3)
+    - [Response](#response-3)
+    - [Specification](#specification-3)
   - [Deprecate `engine_exchangeTransitionConfigurationV1`](#deprecate-engine_exchangetransitionconfigurationv1)
+  - [Update the methods of previous forks](#update-the-methods-of-previous-forks)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -97,7 +103,7 @@ This structure contains the result of processing an inclusion list. The fields a
 * params:
   1. `inclusion_list`: [`InclusionListV1`](#InclusionListV1).
 
-#### Respose
+#### Response
 
 - result: [`InclusionListStatusV1`](#InclusionListStatusV1).
 - error: code and message set in case an exception happens while processing the payload. 
