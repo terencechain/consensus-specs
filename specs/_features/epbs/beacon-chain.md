@@ -198,7 +198,6 @@ class InclusionListSummary(Container)
 ```python
 class SignedInclusionListSummary(Container):
     message: InclusionListSummary
-    parent_block_hash: Hash32
     signature: BLSSignature
 ```
 
@@ -207,6 +206,7 @@ class SignedInclusionListSummary(Container):
 ```python
 class InclusionList(Container)
     signed_summary: SignedInclusionListSummary
+    parent_block_hash: Hash32
     transactions: List[Transaction, MAX_TRANSACTIONS_PER_INCLUSION_LIST]
 ```
 
@@ -262,7 +262,7 @@ class ExecutionPayload(Container):
     withdrawals: List[Withdrawal, MAX_WITHDRAWALS_PER_PAYLOAD]
     blob_gas_used: uint64
     excess_blob_gas: uint64
-    inclusion_list_summary: InclusionListSummary # [New in ePBS]
+    inclusion_list_summary: List[ExecutionAddress, MAX_TRANSACTIONS_PER_INCLUSION_LIST]# [New in ePBS]
 ```
 
 #### `ExecutionPayloadHeader`

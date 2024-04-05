@@ -120,11 +120,11 @@ def get_inclusion_list_summary_signature(state: BeaconState, inclusion_list_summ
 ```
 
 ```python
-def build_inclusion_list(state: BeaconState, inclusion_list_response: GetInclusionListResponse, block_slot: Slot, index: ValidatorIndex, privkey: int) -> InclusionList:
-    summary = InclusionListSummary(proposer_index=index, summary=inclusion_list_response.summary)
+def build_inclusion_list(state: BeaconState, inclusion_list_response: GetInclusionListResponse, block_slot: Slot, parent_block_hash: Hash32, index: ValidatorIndex, privkey: int) -> InclusionList:
+    summary = InclusionListSummary(proposer_index=index, slot=block_slot, summary=inclusion_list_response.summary)
     signature = get_inclusion_list_summary_signature(state, summary, privkey)
     signed_summary = SignedInclusionListSummary(message=summary, signature=signature)
-    return InclusionList(signed_summary=signed_inclusion_list_summary, slot=block_slot, transactions=inclusion_list_response.transactions)
+    return InclusionList(signed_summary=signed_inclusion_list_summary, parent_block_hash=parent_block_hash, transactions=inclusion_list_response.transactions)
 ```
 
 #### Constructing the new `signed_execution_payload_header_envelope` field in  `BeaconBlockBody`
