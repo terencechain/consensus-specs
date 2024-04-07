@@ -145,6 +145,7 @@ This topic is used to propagate signed bids as `SignedExecutionPayloadHeader`.
 The following validations MUST pass before forwarding the `signed_execution_payload_header` on the network, assuming the alias `header = signed_execution_payload_header.message`:
 
 - _[IGNORE]_ this is the first signed bid seen with a valid signature from the given builder for this slot.
+- _[IGNORE]_ this bid is the highest value bid seen for the pair of the corresponding slot and the given parent block hash. 
 - _[REJECT]_ The signed builder bid, `header.builder_index` is a valid and non-slashed builder index in state.
 - _[IGNORE]_ The signed builder bid value, `header.value`, is less or equal than the builder's balance in state.  i.e. `MIN_BUILDER_BALANCE + header.value < state.builder_balances[header.builder_index]`.
 - _[IGNORE]_ `header.parent_block_hash` is the block hash of a known execution payload in fork choice.

@@ -272,6 +272,7 @@ class ExecutionPayload(Container):
 ```python
 class ExecutionPayloadHeader(Container):
     parent_block_hash: Hash32
+    parent_block_root: Root
     block_hash: Hash32
     builder_index: ValidatorIndex
     slot: Slot
@@ -519,6 +520,7 @@ def process_execution_payload_header(state: BeaconState, block: BeaconBlock) -> 
     assert header.slot = block.slot
     # Verify that the bid is for the right parent block
     assert header.parent_block_hash = state.latest_block_hash
+    assert header.parent_block_root = block.parent_root
 
     # Transfer the funds from the builder to the proposer
     decrease_balance(state, builder_index, amount)

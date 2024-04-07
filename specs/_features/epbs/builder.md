@@ -30,12 +30,13 @@ Builders can broadcast a payload bid for the current or the next slot's proposer
 
 Prior to constructing a payload, the builder **MUST** have a full `InclusionList` object from the proposer matching `state.previous_inclusion_list_proposer`. The signed summary for this inclusion list will be needed when revealing the full execution payload (see below). 
 1. Set `header.parent_block_hash` to the current head of the execution chain (this can be obtained from the beacon state as `state.last_block_hash`). 
-2. Construct an execution payload. This can be performed with an external execution engine with a call to `engine_getPayloadV4`. 
-3. Set `header.block_hash` to be the block hash of the constructed payload, that is `payload.block_hash` 
-4. Set `header.builder_index`  to be the validator index of the builder performing these actions. 
-5. Set `header.slot`  to be the slot for which this bid is aimed. This slot **MUST** be either the current slot or the next slot.  
-6. Set `header.value` to be the value that the builder will pay the proposer if the bid is accepted. The builder **MUST** have balance enough to fulfill this bid. 
-7. Set `header.kzg_commitments_root` to be the `hash_tree_root`  of the `blobsbundle.commitments`  field returned by `engine_getPayloadV4`. 
+2. Set `header.parent_block_root` to be the head of the consensus chain (this can be obtained from the beacon state as `hash_tree_root(state.latest_block_header)`. 
+3. Construct an execution payload. This can be performed with an external execution engine with a call to `engine_getPayloadV4`. 
+4. Set `header.block_hash` to be the block hash of the constructed payload, that is `payload.block_hash` 
+5. Set `header.builder_index`  to be the validator index of the builder performing these actions. 
+6. Set `header.slot`  to be the slot for which this bid is aimed. This slot **MUST** be either the current slot or the next slot.  
+7. Set `header.value` to be the value that the builder will pay the proposer if the bid is accepted. The builder **MUST** have balance enough to fulfill this bid. 
+8. Set `header.kzg_commitments_root` to be the `hash_tree_root`  of the `blobsbundle.commitments`  field returned by `engine_getPayloadV4`. 
 
 After building the `header`, the builder obtains a `signature` of the header by using
 
