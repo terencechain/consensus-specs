@@ -105,9 +105,26 @@ ePBS introduces new global topics for execution header, execution payload, paylo
 
 ###### `beacon_block`
 
+[Modified in ePBS]
+
 The *type* of the payload of this topic changes to the (modified) `SignedBeaconBlock` found in ePBS spec. 
 
-There are no new validations for this topic.
+There are no new validations for this topic. However, all validations with regards to the `ExecutionPayload` are removed:
+
+- _[REJECT]_ The length of KZG commitments is less than or equal to the limitation defined in Consensus Layer -- i.e. validate that len(body.signed_beacon_block.message.blob_kzg_commitments) <= MAX_BLOBS_PER_BLOCK
+- _[REJECT]_ The block's execution payload timestamp is correct with respect to the slot
+       -- i.e. `execution_payload.timestamp == compute_timestamp_at_slot(state, block.slot)`.
+- If `execution_payload` verification of block's parent by an execution node is *not* complete:
+    - [REJECT] The block's parent (defined by `block.parent_root`) passes all validation (excluding execution node verification of the `block.body.execution_payload`).
+- otherwise:
+    - [IGNORE] The block's parent (defined by `block.parent_root`) passes all validation (including execution node verification of the `block.body.execution_payload`).
+- [REJECT] The block's parent (defined by `block.parent_root`) passes validation.
+
+And instead the following validations are set in place with the alias `header = signed_execution_payload_header.message`:
+
+- If `execution_payload` verification of block's execution payload parent by an execution node **is complete**:
+    - [REJECT] The block's execution payload parent (defined by `header.parent_block_hash`) passes all validation. 
+- [REJECT] The block's parent (defined by `block.parent_root`) passes validation.
 
 ###### `execution_payload`
 
@@ -145,7 +162,7 @@ This topic is used to propagate signed bids as `SignedExecutionPayloadHeader`.
 The following validations MUST pass before forwarding the `signed_execution_payload_header` on the network, assuming the alias `header = signed_execution_payload_header.message`:
 
 - _[IGNORE]_ this is the first signed bid seen with a valid signature from the given builder for this slot.
-- _[IGNORE]_ this bid is the highest value bid seen for the pair of the corresponding slot and the given parent block hash. 
+- _[IGNORE]_ this bid is the highest value bid seen for the pair of the corresponding slot and the given parent block hash.
 - _[REJECT]_ The signed builder bid, `header.builder_index` is a valid and non-slashed builder index in state.
 - _[IGNORE]_ The signed builder bid value, `header.value`, is less or equal than the builder's balance in state.  i.e. `MIN_BUILDER_BALANCE + header.value < state.builder_balances[header.builder_index]`.
 - _[IGNORE]_ `header.parent_block_hash` is the block hash of a known execution payload in fork choice.
