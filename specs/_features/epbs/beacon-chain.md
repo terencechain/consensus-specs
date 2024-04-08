@@ -333,7 +333,7 @@ class BeaconState(Container):
     latest_inclusion_list_slot: Slot # [New in ePBS]
     latest_block_hash: Hash32 # [New in ePBS]
     latest_full_slot: Slot # [New in ePBS]
-    execution_payload_header: SignedExecutionPayloadHeader # [New in ePBS]
+    execution_payload_header: ExecutionPayloadHeader # [New in ePBS]
     last_withdrawals_root: Root # [New in ePBS]
 ```
 
