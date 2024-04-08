@@ -690,7 +690,6 @@ def process_execution_payload(state: BeaconState, signed_envelope: SignedExecuti
     # Verify inclusion list proposer and slot
     assert envelope.inclusion_list_proposer_index == state.previous_inclusion_list_proposer
     assert envelope.inclusion_list_slot = state.previous_inclusion_list_slot
-    assert payload.
     # Verify inclusion list summary signature
     signed_summary = SignedInclusionListSummary(
         message=InclusionListSummary(

@@ -488,21 +488,19 @@ def on_payload_attestation_message(store: Store,
     # PTC votes can only change the vote for their assigned beacon block, return early otherwise
     if data.slot != state.slot:
         return
+    # Check that the attester is from the PTC
+    assert ptc_message.validator_index in ptc
 
     # Verify the signature and check that its for the current slot if it is coming from the wire
     if not is_from_block:
         # Check that the attestation is for the current slot
         assert data.slot == get_current_slot(store)
-        # Check that the attester is from the current ptc
-        assert ptc_message.validator_index in ptc
         # Verify the signature
         assert is_valid_indexed_payload_attestation(state, 
             IndexedPayloadAttestation(attesting_indices = [ptc_message.validator_index], data = data,
                                       signature = ptc_message.signature))
     # Update the ptc vote for the block
-    # TODO: Do we want to slash ptc members that equivocate? 
-    # we are updating here the message and so the last vote will be the one that counts.
     ptc_index = ptc.index(ptc_message.validator_index)
     ptc_vote = store.ptc_vote[data.beacon_block_root]
-    ptc_vote[ptc_index] = data.present
+    ptc_vote[ptc_index] = data.payload_status
 ```
