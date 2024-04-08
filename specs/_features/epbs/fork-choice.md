@@ -12,7 +12,9 @@
   - [Modified `update_latest_messages`](#modified-update_latest_messages)
   - [Modified `Store`](#modified-store)
   - [`verify_inclusion_list`](#verify_inclusion_list)
-  - [`is_inclusion_list_available`](#is_inclusion_list_available)
+  - [`blocks_for_slot`](#blocks_for_slot)
+  - [`block_for_inclusion_list`](#block_for_inclusion_list)
+  - [`on_inclusion_list`](#on_inclusion_list)
   - [`notify_ptc_messages`](#notify_ptc_messages)
   - [`is_payload_present`](#is_payload_present)
   - [Modified `get_ancestor`](#modified-get_ancestor)
@@ -114,40 +116,73 @@ def verify_inclusion_list(state: BeaconState, block: BeaconBlock, inclusion_list
     assert len(summary) <= MAX_TRANSACTIONS_PER_INCLUSION_LIST
     assert len(inclusion_list.transactions) == len(summary)
 
-    # TODO: These checks will also be performed by the EL surely so we can probably remove them from here.
-    # Check that the total gas limit is bounded
-    total_gas_limit = sum( entry.gas_limit for entry in summary )
-    assert total_gas_limit <= MAX_GAS_PER_INCLUSION_LIST
-  
     # Check that the inclusion list is valid
     return execution_engine.notify_new_inclusion_list(NewInclusionListRequest(
             inclusion_list=inclusion_list.transactions, 
-            summary=inclusion_list.summary.message.summary,
+            summary=summary,
             parent_block_hash = state.latest_execution_payload_header.block_hash))
 ```
 
-### `is_inclusion_list_available`
+### `blocks_for_slot`
 *[New in ePBS]*
 
+The function `blocks_for_slot` returns all the beacon blocks found in the store for the given slot. This implementation here is only for specification purposes and clients may choose to optimize this by using an internal map or similar caching structures. 
+
 ```python
-def is_inclusion_list_available(state: BeaconState, block: BeaconBlock) -> bool:
+def blocks_for_slot(store: Store, slot: Slot) -> Set[BeaconBlock]:
+    return [block for root, block in store.blocks.items() if block.slot == slot]
+```
+
+### `block_for_inclusion_list`
+*[New in ePBS]*
+The function `block_for_inclusion_list` returns a known beacon block in store that is compatible with the given inclusion list
+
+```python
+def block_for_inclusion_list(store: Store, inclusion_list: InclusionList) -> Optional[BeaconBlock]:
+    summary = inclusion_list.signed_summary.message
+    parent_hash = inclusion_list.parent_block_hash
+    
+    blocks = blocks_for_slot(store, summary.slot)
+    for block in blocks:
+        if block.slot == summary.slot and block.proposer_index == summary.proposer_index and block.signed_execution_payload_header.message.parent_block_hash == parent_hash:
+            return block
+    return None
+```
+
+### `on_inclusion_list`
+*[New in ePBS]*
+
+The function `on_inclusion_list` is called every time an `InclusionList` is seen by the node that passes pubsub validation. This specification requires that there is already a beacon block in the store that is compatible with this inclusion list. Client developers may (and should) instead validate the inclusion list against the head state in case it arrives earlier than the beacon block and cache this result. 
+
+```python
+def on_inclusion_list(store: Store, inclusion_list: InclusionList) -> None:
     """
-    Returns whether one inclusion list for the corresponding block was seen in full and has been validated. 
-    There is one exception if the parent consensus block did not contain an exceution payload, in which case
-    We return true early
+    Validates an incoming inclusion list and records the result in the corresponding forkchoice node.
 
     `retrieve_inclusion_list` is implementation and context dependent
-    It returns one inclusion list that was broadcasted during the given slot by the given proposer. 
+    It returns one inclusion list that was broadcast during the given slot by the given proposer. 
     Note: the p2p network does not guarantee sidecar retrieval outside of
     `MIN_SLOTS_FOR_INCLUSION_LISTS_REQUESTS`
     """
+    # Require we have one block compatible with the inclusion list
+    block = block_for_inclusion_list(store, inclusion_list)
+    assert block is not None
+    root = hash_tree_root(block)
+    assert root in store.block_states
+    state = store.block_states[root]
+    assert block.parent_root in store.blocks
+    parent_block = store.blocks[block.parent_root]
+
     # Ignore the list if the parent consensus block did not contain a payload
-    if !is_parent_block_full(state):
-        return True
+    header = block.body.signed_execution_payload_header.message
+    parent_header = parent_block.body.signed_execution_payload_header.message
+    if header.parent_block_hash != parent_header.block_hash
+        assert header.parent_block_hash == parent_header.parent_block_hash
+        return
 
     # verify the inclusion list
-    inclusion_list = retrieve_inclusion_list(block.slot, block.proposer_index)
-    return verify_inclusion_list(state, block, inclusion_list, EXECUTION_ENGINE)
+    assert verify_inclusion_list(state, block, inclusion_list, EXECUTION_ENGINE)
+    store.inclusion_list_available[root]=True
 ```
     
 ### `notify_ptc_messages`

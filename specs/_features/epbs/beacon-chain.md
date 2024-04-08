@@ -379,7 +379,7 @@ def is_valid_indexed_payload_attestation(state: BeaconState, indexed_payload_att
 
 #### `is_parent_block_full`
 
-This function returns true if the last committed payload header was fulfilled with a full payload, this can only happen when the parent block was full, that is both beacon block and payload were present. 
+This function returns true if the last committed payload header was fulfilled with a full payload, this can only happen when the parent block was full, that is both beacon block and payload were present. This function must be called on a beacon state before processing the execution payload header in the block. 
 
 ```python
 def is_parent_block_full(state: BeaconState) -> bool:

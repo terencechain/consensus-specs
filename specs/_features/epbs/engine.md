@@ -29,8 +29,6 @@ Engine API changes introduced in the ePBS fork
     - [Request](#request-3)
     - [Response](#response-3)
     - [Specification](#specification-3)
-  - [Deprecate `engine_exchangeTransitionConfigurationV1`](#deprecate-engine_exchangetransitionconfigurationv1)
-  - [Update the methods of previous forks](#update-the-methods-of-previous-forks)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -203,27 +201,3 @@ Refer to the specification for [`engine_getPayloadV2`](./shanghai.md#engine_getp
 4. The call **MUST** return `blobs` and `proofs` that match the `commitments` list, i.e. `assert len(blobsBundle.commitments) == len(blobsBundle.blobs) == len(blobsBundle.proofs)` and `assert verify_blob_kzg_proof_batch(blobsBundle.blobs, blobsBundle.commitments, blobsBundle.proofs)`.
 
 5. Client software **MAY** use any heuristics to decide whether to set `shouldOverrideBuilder` flag or not. If client software does not implement any heuristic this flag **SHOULD** be set to `false`.
-
-### Deprecate `engine_exchangeTransitionConfigurationV1`
-
-This document introduces deprecation of [`engine_exchangeTransitionConfigurationV1`](./paris.md#engine_exchangetransitionconfigurationv1). The deprecation is specified as follows:
-
-1. Consensus layer clients **MUST NOT** call this method.
-
-2. Execution layer clients **MUST NOT** surface an error message to the user if this method is not called.
-
-3. Consensus and execution layer clients **MAY** remove support of this method after Cancun. If no longer supported, this method **MUST** be removed from the [`engine_exchangeCapabilities`](./common.md#engine_exchangecapabilities) request or response list depending on whether it is consensus or execution layer client.
-
-### Update the methods of previous forks
-
-This document defines how Cancun payload should be handled by the [`Shanghai API`](./shanghai.md).
-
-For the following methods:
-
-- [`engine_forkchoiceUpdatedV2`](./shanghai.md#engine_forkchoiceupdatedv2)
-- [`engine_newPayloadV2`](./shanghai.md#engine_newpayloadV2)
-- [`engine_getPayloadV2`](./shanghai.md#engine_getpayloadv2)
-
-a validation **MUST** be added:
-
-1. Client software **MUST** return `-38005: Unsupported fork` error if the `timestamp` of payload or payloadAttributes greater or equal to the Cancun activation timestamp.
