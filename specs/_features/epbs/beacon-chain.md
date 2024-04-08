@@ -639,7 +639,7 @@ def process_payload_attestation(state: BeaconState, payload_attestation: Payload
                     epoch_participation[index] = remove_flag(flag_index)
                     proposer_penalty_numerator += get_base_reward(state, index) * weight
         # Penalize the proposer
-        proposer_penalty = Gwei(proposer_penalty_numerator // proposer_reward_denominator)
+        proposer_penalty = Gwei(2*proposer_penalty_numerator // proposer_reward_denominator)
         decrease_balance(state, proposer_index, proposer_penalty)
         return
 
