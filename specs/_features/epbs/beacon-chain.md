@@ -333,7 +333,7 @@ class BeaconState(Container):
     latest_inclusion_list_slot: Slot # [New in ePBS]
     latest_block_hash: Hash32 # [New in ePBS]
     latest_full_slot: Slot # [New in ePBS]
-    signed_execution_payload_header: SignedExecutionPayloadHeader # [New in ePBS]
+    execution_payload_header: SignedExecutionPayloadHeader # [New in ePBS]
     last_withdrawals_root: Root # [New in ePBS]
 ```
 
@@ -383,7 +383,7 @@ This function returns true if the last committed payload header was fulfilled wi
 
 ```python
 def is_parent_block_full(state: BeaconState) -> bool:
-    return state.signed_execution_payload_header.message.block_hash == state.latest_block_hash
+    return state.execution_payload_header.block_hash == state.latest_block_hash
 ```
 
 ### Beacon State accessors
@@ -531,7 +531,7 @@ def process_execution_payload_header(state: BeaconState, block: BeaconBlock) -> 
         state.latest_inclusion_list_proposer = block.proposer_index
         state.latest_inclusion_list_slot = block.slot
     # Cache the signed execution payload header 
-    state.signed_execution_payload_header = signed_header
+    state.execution_payload_header = header
 ```
 
 
@@ -702,7 +702,7 @@ def process_execution_payload(state: BeaconState, signed_envelope: SignedExecuti
     # Verify consistency with the beacon block
     assert envelope.beacon_block_root == hash_tree_root(state.latest_block_header)
     # Verify consistency with the committed header
-    committed_header = state.signed_execution_payload_header.message
+    committed_header = state.execution_payload_header
     assert committed_header.block_hash == payload.block_hash 
     assert committed_header.blob_kzg_commitments_root == hash_tree_root(envelope.blob_kzg_commitments)
     assert envelope.builder_index == committed_header.builder_index

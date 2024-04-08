@@ -88,7 +88,8 @@ class Store(object):
     latest_messages: Dict[ValidatorIndex, LatestMessage] = field(default_factory=dict)
     unrealized_justifications: Dict[Root, Checkpoint] = field(default_factory=dict)
     execution_payload_states: Dict[Root, BeaconState] = field(default_factory=dict) # [New in ePBS]
-    ptc_vote: Dict[Root, Vector[bool, PTC_SIZE]] = field(default_factory=dict) # [New in ePBS]
+    inclusion_list_available: Dict[Root, bool] = field(default_factory=dict) # [New in ePBS]
+    ptc_vote: Dict[Root, Vector[uint8, PTC_SIZE]] = field(default_factory=dict) # [New in ePBS]
 ```
 
 ### `verify_inclusion_list`
@@ -340,9 +341,7 @@ def notify_new_inclusion_list(self: ExecutionEngine,
 
 ### `on_block`
 
-*Note*: The handler `on_block` is modified to consider the pre `state` of the given consensus beacon block depending not only on the parent block root, but also on the parent blockhash. There is also the addition of the inclusion list availability check.
-
-In addition we delay the checking of blob availability until the processing of the execution payload. 
+*Note*: The handler `on_block` is modified to consider the pre `state` of the given consensus beacon block depending not only on the parent block root, but also on the parent blockhash. In addition we delay the checking of blob data availability until the processing of the execution payload. 
 
 ```python
 def on_block(store: Store, signed_block: SignedBeaconBlock) -> None:
@@ -355,15 +354,16 @@ def on_block(store: Store, signed_block: SignedBeaconBlock) -> None:
 
     # Check if this blocks builds on empty or full parent block
     parent_block = store.blocks[block.parent_root]
-    parent_signed_payload_header_envelope = parent_block.body.signed_execution_payload_header_envelope
-    parent_payload_hash = parent_signed_payload_header_envelope.message.header.block_hash
-    current_signed_payload_header_envelope = block.body.signed_execution_payload_header_envelope
-    current_payload_parent_hash = current_signed_payload_header_envelope.message.header.parent_hash
+    header = block.body.signed_execution_payload_header.message
+    parent_header = parent_block.body.signed_execution_payload_header.message
+    parent_payload_hash = parent_header.block_hash
+    current_payload_parent_hash = header.parent_block_hash
     # Make a copy of the state to avoid mutability issues
     if current_payload_parent_hash == parent_payload_hash:
         assert block.parent_root in store.execution_payload_states
         state = copy(store.execution_payload_states[block.parent_root])
     else:
+        assert current_payload_parent_hash == parent_header.parent_block_hash
         state = copy(store.block_states[block.parent_root])
 
     # Blocks cannot be in the future. If they are, their consideration must be delayed until they are in the past.
@@ -381,12 +381,6 @@ def on_block(store: Store, signed_block: SignedBeaconBlock) -> None:
     )
     assert store.finalized_checkpoint.root == finalized_checkpoint_block
 
-    # Check if there is a valid inclusion list. 
-    # This check is performed only if the block's slot is within the visibility window
-    # If not, this block MAY be queued and subsequently considered when a valid inclusion list becomes available
-    if block.slot + MIN_SLOTS_FOR_INCLUSION_LISTS_REQUESTS >= current_slot:
-        assert is_inclusion_list_available(state, block)
-
     # Check the block is valid and compute the post-state
     block_root = hash_tree_root(block)
     state_transition(state, signed_block, True)
@@ -396,11 +390,13 @@ def on_block(store: Store, signed_block: SignedBeaconBlock) -> None:
     # Add new state for this block to the store
     store.block_states[block_root] = state
     # Add a new PTC voting for this block to the store
-    store.ptc_vote[block_root] = [False]*PTC_SIZE
+    store.ptc_vote[block_root] = [PAYLOAD_ABSENT]*PTC_SIZE
+    # if the parent block is empty record that the inclusion list for this block has been satisfied
+    if current_payload_parent_hash == parent_header.parent_block_hash:
+        store.inclusion_list_available = True
 
     # Notify the store about the payload_attestations in the block
     store.notify_ptc_messages(state, block.body.payload_attestations)
-
     # Add proposer score boost if the block is timely
     time_into_slot = (store.time - store.genesis_time) % SECONDS_PER_SLOT
     is_before_attesting_interval = time_into_slot < SECONDS_PER_SLOT // INTERVALS_PER_SLOT
