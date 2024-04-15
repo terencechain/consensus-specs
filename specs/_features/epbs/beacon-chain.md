@@ -397,12 +397,12 @@ def get_ptc(state: BeaconState, slot: Slot) -> Vector[ValidatorIndex, PTC_SIZE]:
     """
     epoch = compute_epoch_at_slot(slot)
     committees_per_slot = bit_floor(min(get_committee_count_per_slot(state, epoch), PTC_SIZE))
-    members_per_committee = PTC_SIZE/committees_per_slot
+    members_per_committee = PTC_SIZE // committees_per_slot
     
     validator_indices = [] 
-    for idx in range(committees_per_slot)
+    for idx in range(committees_per_slot):
         beacon_committee = get_beacon_committee(state, slot, idx)
-        validator_indices += beacon_committee[:members_per_commitee]
+        validator_indices += beacon_committee[:members_per_committee]
     return validator_indices
 ```
 
@@ -451,7 +451,7 @@ The post-state corresponding to a pre-state `state` and a signed execution paylo
 
 ```python
 def process_block(state: BeaconState, block: BeaconBlock) -> None:
-    process_block_header(state, block) #
+    process_block_header(state, block)
     removed process_withdrawals(state) [Modified in ePBS]
     process_execution_payload_header(state, block) # [Modified in ePBS, removed process_execution_payload]
     process_randao(state, block.body)
@@ -466,7 +466,7 @@ def process_block(state: BeaconState, block: BeaconBlock) -> None:
 ```python
 def process_withdrawals(state: BeaconState) -> None:
     ## return early if the parent block was empty
-    if !is_parent_block_full(state):
+    if not is_parent_block_full(state):
         return
 
     withdrawals = get_expected_withdrawals(state)
@@ -517,10 +517,10 @@ def process_execution_payload_header(state: BeaconState, block: BeaconBlock) -> 
     assert state.balances[builder_index] >= amount
 
     # Verify that the bid is for the current slot
-    assert header.slot = block.slot
+    assert header.slot == block.slot
     # Verify that the bid is for the right parent block
-    assert header.parent_block_hash = state.latest_block_hash
-    assert header.parent_block_root = block.parent_root
+    assert header.parent_block_hash == state.latest_block_hash
+    assert header.parent_block_root == block.parent_root
 
     # Transfer the funds from the builder to the proposer
     decrease_balance(state, builder_index, amount)
@@ -587,7 +587,7 @@ def process_attestation(state: BeaconState, attestation: Attestation) -> None:
     ptc = get_ptc(state, data.slot)
     attesting_indices = [i for i in get_attesting_indices(state, data, attestation.aggregation_bits) if i not in ptc]
     proposer_reward_numerator = 0
-    for index in attesting_indices
+    for index in attesting_indices:
         for flag_index, weight in enumerate(PARTICIPATION_FLAG_WEIGHTS):
             if flag_index in participation_flag_indices and not has_flag(epoch_participation[index], flag_index):
                 epoch_participation[index] = add_flag(epoch_participation[index], flag_index)
@@ -603,7 +603,7 @@ def process_attestation(state: BeaconState, attestation: Attestation) -> None:
 
 ```python
 def remove_flag(flags: ParticipationFlags, flag_index: int) -> ParticipationFlags:
-    flag = PartitipationFlags(2**flag_index)
+    flag = ParticipationFlags(2**flag_index)
     return flags & ~flag
 ``` 
 
@@ -627,16 +627,16 @@ def process_payload_attestation(state: BeaconState, payload_attestation: Payload
 
     # Return early if the attestation is for the wrong payload status
     payload_was_present = data.slot == state.latest_full_slot
-    voted_preset = data.payload_status == PAYLOAD_PRESENT
+    voted_present = data.payload_status == PAYLOAD_PRESENT
     proposer_reward_denominator = (WEIGHT_DENOMINATOR - PROPOSER_WEIGHT) * WEIGHT_DENOMINATOR // PROPOSER_WEIGHT
     proposer_index = get_beacon_proposer_index(state)
     if voted_present != payload_was_present:
         # Unset the flags in case they were set by an equivocating ptc attestation
         proposer_penalty_numerator = 0
-        for index in indexed_payload_atterstation.attesting_indices:
+        for index in indexed_payload_attestation.attesting_indices:
             for flag_index, weight in enumerate(PARTICIPATION_FLAG_WEIGHTS):
                 if has_flag(epoch_participation[index], flag_index):
-                    epoch_participation[index] = remove_flag(flag_index)
+                    epoch_participation[index] = remove_flag(epoch_participation[index], flag_index)
                     proposer_penalty_numerator += get_base_reward(state, index) * weight
         # Penalize the proposer
         proposer_penalty = Gwei(2*proposer_penalty_numerator // proposer_reward_denominator)
@@ -649,7 +649,7 @@ def process_payload_attestation(state: BeaconState, payload_attestation: Payload
         for flag_index, weight in enumerate(PARTICIPATION_FLAG_WEIGHTS):
             if not has_flag(epoch_participation[index], flag_index):
                 epoch_participation[index] = add_flag(epoch_participation[index], flag_index)
-                proposer_reward_numerator += base_reward * weight
+                proposer_reward_numerator += get_base_reward(state, index) * weight
 
     # Reward proposer
     proposer_reward = Gwei(proposer_reward_numerator // proposer_reward_denominator)
@@ -682,20 +682,20 @@ def verify_inclusion_list_summary_signature(state: BeaconState, signed_summary: 
 def process_execution_payload(state: BeaconState, signed_envelope: SignedExecutionPayloadEnvelope, execution_engine: ExecutionEngine, verify = True) -> None:
     # Verify signature
     if verify: 
-        assert verify_execution_envelope_signature(state, signed_envelope)
+        assert verify_execution_payload_envelope_signature(state, signed_envelope)
     envelope = signed_envelope.message
     payload = envelope.payload
     # Verify the withdrawals root
     assert hash_tree_root(payload.withdrawals) == state.last_withdrawals_root
     # Verify inclusion list proposer and slot
     assert envelope.inclusion_list_proposer_index == state.previous_inclusion_list_proposer
-    assert envelope.inclusion_list_slot = state.previous_inclusion_list_slot
+    assert envelope.inclusion_list_slot == state.previous_inclusion_list_slot
     # Verify inclusion list summary signature
     signed_summary = SignedInclusionListSummary(
         message=InclusionListSummary(
-            proposer_index=envelope.inclusion_list_proposer_index
-            slot = envelope.inclusion_list_slot
-            summary=payload.inclusion_list_summary)
+            proposer_index=envelope.inclusion_list_proposer_index,
+            slot = envelope.inclusion_list_slot,
+            summary=payload.inclusion_list_summary),
         signature=envelope.inclusion_list_signature)
     assert verify_inclusion_list_summary_signature(state, signed_summary)
     # Verify consistency with the beacon block
