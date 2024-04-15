@@ -158,11 +158,6 @@ The function `on_inclusion_list` is called every time an `InclusionList` is seen
 def on_inclusion_list(store: Store, inclusion_list: InclusionList) -> None:
     """
     Validates an incoming inclusion list and records the result in the corresponding forkchoice node.
-
-    `retrieve_inclusion_list` is implementation and context dependent
-    It returns one inclusion list that was broadcast during the given slot by the given proposer. 
-    Note: the p2p network does not guarantee sidecar retrieval outside of
-    `MIN_SLOTS_FOR_INCLUSION_LISTS_REQUESTS`
     """
     # Require we have one block compatible with the inclusion list
     block = block_for_inclusion_list(store, inclusion_list)
@@ -192,6 +187,8 @@ def notify_ptc_messages(store: Store, state: BeaconState, payload_attestations: 
     """
     Extracts a list of ``PayloadAttestationMessage`` from ``payload_attestations`` and updates the store with them
     """
+    if state.slot == 0:
+        return
     for payload_attestation in payload_attestations:
         indexed_payload_attestation = get_indexed_payload_attestation(state, state.slot - 1, payload_attestation)
         for idx in indexed_payload_attestation.attesting_indices:
@@ -209,7 +206,7 @@ def is_payload_present(store: Store, beacon_block_root: Root) -> bool:
     """
     # The beacon block root must be known
     assert beacon_block_root in store.ptc_vote
-    return store.ptc_vote[beacon_block_root].count(True) > PAYLOAD_TIMELY_THRESHOLD
+    return store.ptc_vote[beacon_block_root].count(PAYLOAD_PRESENT) > PAYLOAD_TIMELY_THRESHOLD
 ```
 
 ### Modified `get_ancestor` 
@@ -225,11 +222,13 @@ def get_ancestor(store: Store, root: Root, slot: Slot) -> tuple[Root, bool]:
     block = store.blocks[root]
     if block.slot == slot:
         return [root, store.is_payload_present(root)]
+
+    assert block.slot > slot
     parent = store.blocks[block.parent_root]
     if parent.slot > slot:
         return get_ancestor(store, block.parent_root, slot)
-    if block.body.signed_execution_payload_header_envelope.message.parent_hash == 
-        parent.body.signed_execution_payload_header_envelope.message.block_hash:
+    if block.body.signed_execution_payload_header.message.parent_block_hash == 
+        parent.body.signed_execution_payload_header.message.block_hash:
         return (block.parent_root, True)
     return (block.parent_root, False)
 ```
@@ -258,6 +257,7 @@ def is_supporting_vote(store: Store, root: Root, slot: Slot, is_payload_present:
     """
     if root == message.root:
         # an attestation for a given root always counts for that root regardless if full or empty
+        # as long as the attestation happened after the requested slot. 
         return slot <= message.slot
     message_block = store.blocks[message.root]
     if slot > message_block.slot:
@@ -268,7 +268,7 @@ def is_supporting_vote(store: Store, root: Root, slot: Slot, is_payload_present:
 
 ### Modified `get_weight`
 
-**Note:** `get_weight` is modified to only count votes for descending chains that support the status of a triple `Root, Slot, bool`, where the `bool` indicates if the block was full or not. 
+**Note:** `get_weight` is modified to only count votes for descending chains that support the status of a triple `Root, Slot, bool`, where the `bool` indicates if the block was full or not. `Slot` is needed for a correct implementation of `(Block, Slot)` voting. 
 
 ```python
 def get_weight(store: Store, root: Root, slot: Slot, is_payload_present: bool) -> Gwei:
@@ -297,12 +297,12 @@ def get_weight(store: Store, root: Root, slot: Slot, is_payload_present: bool) -
     return attestation_score + proposer_score
 ```
 
-### Modified `get_head` 
+### New `get_head_no_il` 
 
-**Note:** `get_head` is modified to use the new `get_weight` function. It returns the Beacon block root of the head block and whether its payload is considered present or not. 
+**Note:** `get_head_no_il` is a modified version of `get_head` to use the new `get_weight` function. It returns the Beacon block root of the head block and whether its payload is considered present or not. It disregards IL availability. 
 
 ```python
-def get_head(store: Store) -> tuple[Root, bool]:
+def get_head_no_il(store: Store) -> tuple[Root, bool]:
     # Get filtered block tree that only includes viable branches
     blocks = get_filtered_block_tree(store)
     # Execute the LMD-GHOST fork choice
@@ -323,7 +323,6 @@ def get_head(store: Store) -> tuple[Root, bool]:
         # Ties broken by favoring full blocks
         # Ties broken then by favoring higher slot numbers
         # Ties then broken by favoring block with lexicographically higher root
-        # TODO: Can (root, full), (root, empty) have the same weight?
         child_root = max(children, key=lambda (root, slot, present): (get_weight(store, root, slot, present), present, slot, root))
         if child_root == head_root:
             return (head_root, head_full)
@@ -331,20 +330,18 @@ def get_head(store: Store) -> tuple[Root, bool]:
         head_full = is_payload_present(store, head_root)
 ```
 
-### New `get_block_hash`
+### Modified `get_head` 
+`get_head` is modified to use the new weight system by `(block, slot, payload_present)` voting and to not consider nodes without an available inclusion list
 
 ```python
-def get_blockhash(store: Store, root: Root) -> Hash32:
-    """
-    returns the blockHash of the latest execution payload in the chain containing the 
-    beacon block with root ``root``
-    """
-    # The block is known 
-    if is_payload_present(store, root):
-        return hash(store.execution_payload_states[root].latest_block_header)
-    return hash(store.block__states[root].latest_block_header)
+def get_head(store: Store) -> tuple[Root, bool]:
+    head_root, _ = get_head_no_il(store)
+    while not store.inclusion_list_available(head_root):
+        head_block = store.blocks[head_root]
+        head_root = head_block.parent_root
+    return head_root, store.is_payload_present(head_root)
 ```
-   
+
 ## Engine APIs
 
 ### New `NewInclusionListRequest`
