@@ -126,7 +126,7 @@ def verify_inclusion_list(state: BeaconState, block: BeaconBlock, inclusion_list
     return execution_engine.notify_new_inclusion_list(NewInclusionListRequest(
             inclusion_list=inclusion_list.transactions, 
             summary=summary,
-            parent_block_hash = state.execution_payload_header.block_hash))
+            parent_block_hash = state.latest_block_hash))
 ```
 
 ### `blocks_for_slot`
