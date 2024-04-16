@@ -514,7 +514,7 @@ def on_tick_per_slot(store: Store, time: uint64) -> None:
     else: 
         # reset the payload boost if this is the attestation time
         if seconds_into_slot(store) >= SECONDS_PER_SLOT // INTERVALS_PER_SLOT:
-            store.payload_withheld_boost_root = Root()
+            store.payload_withhold_boost_root = Root()
             store.payload_reveal_boost_root = Root()
 
     # If a new epoch, pull-up justification and finalization from previous epoch
@@ -562,5 +562,5 @@ def on_payload_attestation_message(store: Store,
         store.payload_reveal_boost_root = data.beacon_block_root
     if ptc_vote.count(PAYLOAD_WITHHELD) > PAYLOAD_TIMELY_THRESHOLD:
         block = store.blocks[data.beacon_block_root]
-        store.payload_withheld_boost_root = block.parent_root
+        store.payload_withhold_boost_root = block.parent_root
 ```
