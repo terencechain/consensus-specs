@@ -266,7 +266,7 @@ def is_supporting_vote(store: Store, root: Root, slot: Slot, is_payload_present:
         # as long as the attestation happened after the requested slot. 
         return slot <= message.slot
     message_block = store.blocks[message.root]
-    if slot > message_block.slot:
+    if slot >= message_block.slot:
         return False
     (ancestor_root, is_ancestor_full) =  get_ancestor(store, message.root, slot)
     return (root == ancestor_root) and (is_payload_preset == is_ancestor_full)
