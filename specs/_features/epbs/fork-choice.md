@@ -7,7 +7,6 @@
 
 - [Introduction](#introduction)
 - [Constant](#constant)
-- [Helpers](#helpers)
   - [Modified `LatestMessage`](#modified-latestmessage)
   - [Modified `update_latest_messages`](#modified-update_latest_messages)
   - [Modified `Store`](#modified-store)
@@ -20,9 +19,10 @@
   - [Modified `get_ancestor`](#modified-get_ancestor)
   - [Modified `get_checkpoint_block`](#modified-get_checkpoint_block)
   - [`is_supporting_vote`](#is_supporting_vote)
+  - [New `compute_boost`](#new-compute_boost)
   - [Modified `get_weight`](#modified-get_weight)
+  - [New `get_head_no_il`](#new-get_head_no_il)
   - [Modified `get_head`](#modified-get_head)
-  - [New `get_block_hash`](#new-get_block_hash)
 - [Engine APIs](#engine-apis)
   - [New `NewInclusionListRequest`](#new-newinclusionlistrequest)
   - [New `notify_new_inclusion_list`](#new-notify_new_inclusion_list)
@@ -30,6 +30,8 @@
   - [`on_block`](#on_block)
 - [New fork-choice handlers](#new-fork-choice-handlers)
   - [`on_execution_payload`](#on_execution_payload)
+  - [`seconds_into_slot`](#seconds_into_slot)
+  - [Modified `on_tick_per_slot`](#modified-on_tick_per_slot)
   - [`on_payload_attestation_message`](#on_payload_attestation_message)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
