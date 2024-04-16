@@ -106,7 +106,7 @@ class Store(object):
 ```python
 def verify_inclusion_list(state: BeaconState, block: BeaconBlock, inclusion_list: InclusionList, execution_engine: ExecutionEngine) -> bool:
     """
-    returns true if the inclusion list is valid. 
+    Returns true if the inclusion list is valid. 
     """
     # Check that the inclusion list corresponds to the block proposer
     signed_summary = inclusion_list.summary
@@ -126,7 +126,7 @@ def verify_inclusion_list(state: BeaconState, block: BeaconBlock, inclusion_list
     return execution_engine.notify_new_inclusion_list(NewInclusionListRequest(
             inclusion_list=inclusion_list.transactions, 
             summary=summary,
-            parent_block_hash = state.latest_execution_payload_header.block_hash))
+            parent_block_hash = state.execution_payload_header.block_hash))
 ```
 
 ### `blocks_for_slot`
@@ -141,7 +141,7 @@ def blocks_for_slot(store: Store, slot: Slot) -> Set[BeaconBlock]:
 
 ### `block_for_inclusion_list`
 *[New in ePBS]*
-The function `block_for_inclusion_list` returns a known beacon block in store that is compatible with the given inclusion list
+The function `block_for_inclusion_list` returns a known beacon block in store that is compatible with the given inclusion list.
 
 ```python
 def block_for_inclusion_list(store: Store, inclusion_list: InclusionList) -> Optional[BeaconBlock]:
@@ -150,7 +150,7 @@ def block_for_inclusion_list(store: Store, inclusion_list: InclusionList) -> Opt
     
     blocks = blocks_for_slot(store, summary.slot)
     for block in blocks:
-        if block.slot == summary.slot and block.proposer_index == summary.proposer_index and block.signed_execution_payload_header.message.parent_block_hash == parent_hash:
+        if block.proposer_index == summary.proposer_index and block.signed_execution_payload_header.message.parent_block_hash == parent_hash:
             return block
     return None
 ```
@@ -177,7 +177,7 @@ def on_inclusion_list(store: Store, inclusion_list: InclusionList) -> None:
     # Ignore the list if the parent consensus block did not contain a payload
     header = block.body.signed_execution_payload_header.message
     parent_header = parent_block.body.signed_execution_payload_header.message
-    if header.parent_block_hash != parent_header.block_hash
+    if header.parent_block_hash != parent_header.block_hash:
         assert header.parent_block_hash == parent_header.parent_block_hash
         return
 
@@ -192,6 +192,7 @@ def on_inclusion_list(store: Store, inclusion_list: InclusionList) -> None:
 def notify_ptc_messages(store: Store, state: BeaconState, payload_attestations: Sequence[PayloadAttestation]) -> None:
     """
     Extracts a list of ``PayloadAttestationMessage`` from ``payload_attestations`` and updates the store with them
+    These Payload attestations are assumed to be in the beacon block hence signature verification is not needed
     """
     if state.slot == 0:
         return
@@ -199,7 +200,7 @@ def notify_ptc_messages(store: Store, state: BeaconState, payload_attestations: 
         indexed_payload_attestation = get_indexed_payload_attestation(state, state.slot - 1, payload_attestation)
         for idx in indexed_payload_attestation.attesting_indices:
             store.on_payload_attestation_message(PayloadAttestationMessage(validator_index=idx,
-                    data=payload_attestation.data, signature= BLSSignature(), is_from_block=true)
+                    data=payload_attestation.data, signature= BLSSignature(), is_from_block=true))
 ```
 
 ### `is_payload_present`
@@ -207,7 +208,7 @@ def notify_ptc_messages(store: Store, state: BeaconState, payload_attestations: 
 ```python
 def is_payload_present(store: Store, beacon_block_root: Root) -> bool:
     """
-    return whether the execution payload for the beacon block with root ``beacon_block_root`` was voted as present 
+    Return whether the execution payload for the beacon block with root ``beacon_block_root`` was voted as present 
     by the PTC
     """
     # The beacon block root must be known
@@ -221,20 +222,19 @@ def is_payload_present(store: Store, beacon_block_root: Root) -> bool:
 ```python
 def get_ancestor(store: Store, root: Root, slot: Slot) -> tuple[Root, bool]:
     """
-    returns the beacon block root of the ancestor of the beacon block with ``root`` at``slot`` and it also 
+    Returns the beacon block root of the ancestor of the beacon block with ``root`` at ``slot`` and it also 
     returns ``true`` if it based on a full block and ``false`` otherwise. 
     If the beacon block with ``root`` is already at ``slot`` it returns it's PTC status.
     """
     block = store.blocks[root]
     if block.slot == slot:
-        return [root, store.is_payload_present(root)]
+        return (root, store.is_payload_present(root))
 
     assert block.slot > slot
     parent = store.blocks[block.parent_root]
     if parent.slot > slot:
         return get_ancestor(store, block.parent_root, slot)
-    if block.body.signed_execution_payload_header.message.parent_block_hash == 
-        parent.body.signed_execution_payload_header.message.block_hash:
+    if block.body.signed_execution_payload_header.message.parent_block_hash == parent.body.signed_execution_payload_header.message.block_hash:
         return (block.parent_root, True)
     return (block.parent_root, False)
 ```
@@ -258,7 +258,7 @@ def get_checkpoint_block(store: Store, root: Root, epoch: Epoch) -> Root:
 ```python
 def is_supporting_vote(store: Store, root: Root, slot: Slot, is_payload_present: bool, message: LatestMessage) -> bool:
     """
-    returns whether a vote for ``message.root`` supports the chain containing the beacon block ``root`` with the
+    Returns whether a vote for ``message.root`` supports the chain containing the beacon block ``root`` with the
     payload contents indicated by ``is_payload_present`` as head during slot ``slot``.
     """
     if root == message.root:
@@ -269,7 +269,7 @@ def is_supporting_vote(store: Store, root: Root, slot: Slot, is_payload_present:
     if slot >= message_block.slot:
         return False
     (ancestor_root, is_ancestor_full) =  get_ancestor(store, message.root, slot)
-    return (root == ancestor_root) and (is_payload_preset == is_ancestor_full)
+    return (root == ancestor_root) and (is_payload_present == is_ancestor_full)
 ```
 
 ### New `compute_boost`
@@ -466,7 +466,7 @@ def on_block(store: Store, signed_block: SignedBeaconBlock) -> None:
 ### `on_execution_payload`
 
 ```python
-def on_excecution_payload(store: Store, signed_envelope: SignedExecutionPayloadEnvelope) -> None:
+def on_execution_payload(store: Store, signed_envelope: SignedExecutionPayloadEnvelope) -> None:
     """
     Run ``on_execution_payload`` upon receiving a new execution payload.
     """
@@ -484,7 +484,7 @@ def on_excecution_payload(store: Store, signed_envelope: SignedExecutionPayloadE
     # Process the execution payload
     process_execution_payload(state, signed_envelope, EXECUTION_ENGINE)
 
-    #Add new state for this payload to the store
+    # Add new state for this payload to the store
     store.execution_payload_states[envelope.beacon_block_root] = state
 ```   
 
@@ -512,7 +512,7 @@ def on_tick_per_slot(store: Store, time: uint64) -> None:
     if current_slot > previous_slot:
         store.proposer_boost_root = Root()
     else: 
-        # reset the payload boost if this is the attestation time
+        # Reset the payload boost if this is the attestation time
         if seconds_into_slot(store) >= SECONDS_PER_SLOT // INTERVALS_PER_SLOT:
             store.payload_withhold_boost_root = Root()
             store.payload_reveal_boost_root = Root()
