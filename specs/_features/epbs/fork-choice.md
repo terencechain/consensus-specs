@@ -554,7 +554,11 @@ def on_payload_attestation_message(store: Store,
     ptc_vote = store.ptc_vote[data.beacon_block_root]
     ptc_vote[ptc_index] = data.payload_status
     
-    if data.slot != get_current_slot(store):
+    # Only update payload boosts with attestations from a block if the block is for the current slot and it's early
+    if is_from_block && data.slot + 1 != get_current_slot(store):
+        return
+    time_into_slot = (store.time - store.genesis_time) % SECONDS_PER_SLOT
+    if time_into_slot >= SECONDS_PER_SLOT // INTERVALS_PER_SLOT:
         return
 
     # Update the payload boosts if threshold has been achieved
