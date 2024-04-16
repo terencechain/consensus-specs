@@ -44,7 +44,9 @@ This is the modification of the fork choice accompanying the ePBS upgrade.
 | Name                 | Value       |
 | -------------------- | ----------- |
 | `PAYLOAD_TIMELY_THRESHOLD` | `PTC_SIZE/2` (=`uint64(256)`) | 
-
+| `PROPOSER_SCORE_BOOST` | `20` (modified in ePBS]) | 
+| `PAYLOAD_WITHHOLD_BOOST` | `40` | 
+| `PAYLOAD_REVEAL_BOOST` | `40` | 
 ## Helpers
 
 ### Modified `LatestMessage`
@@ -92,6 +94,8 @@ class Store(object):
     execution_payload_states: Dict[Root, BeaconState] = field(default_factory=dict) # [New in ePBS]
     inclusion_list_available: Dict[Root, bool] = field(default_factory=dict) # [New in ePBS]
     ptc_vote: Dict[Root, Vector[uint8, PTC_SIZE]] = field(default_factory=dict) # [New in ePBS]
+    payload_withhold_boost_root: Root # [New in ePBS]
+    payload_reveal_boost_root: Root # [New in ePBS]
 ```
 
 ### `verify_inclusion_list`
@@ -266,6 +270,20 @@ def is_supporting_vote(store: Store, root: Root, slot: Slot, is_payload_present:
     return (root == ancestor_root) and (is_payload_preset == is_ancestor_full)
 ```
 
+### New `compute_boost`
+
+```python
+def compute_boost(store: Store, state: State, root: Root, boost_root: Root, is_payload_present: bool, boost_value: uint64) -> Gwei:
+    boost = Gwei(0)
+    if boost_root == Root():
+        return boost
+    (ancestor_root, is_ancestor_full) = get_ancestor(store, boost_root, store.blocks[root].slot)
+    if (ancestor_root == root) and (is_ancestor_full == is_payload_present):
+        committee_weight = get_total_active_balance(state) // SLOTS_PER_EPOCH
+        boost = (committee_weight * boost_value) // 100
+    return boost
+```
+
 ### Modified `get_weight`
 
 **Note:** `get_weight` is modified to only count votes for descending chains that support the status of a triple `Root, Slot, bool`, where the `bool` indicates if the block was full or not. `Slot` is needed for a correct implementation of `(Block, Slot)` voting. 
@@ -287,14 +305,13 @@ def get_weight(store: Store, root: Root, slot: Slot, is_payload_present: bool) -
         # Return only attestation score if ``proposer_boost_root`` is not set
         return attestation_score
 
-    # Calculate proposer score if ``proposer_boost_root`` is set
-    proposer_score = Gwei(0)
-    # Boost is applied if ``root`` is an ancestor of ``proposer_boost_root``
-    (ancestor_root, is_ancestor_full) = get_ancestor(store, store.proposer_boost_root, store.blocks[root].slot)
-    if (ancestor_root == root) and (is_ancestor_full == is_payload_present):
-        committee_weight = get_total_active_balance(state) // SLOTS_PER_EPOCH
-        proposer_score = (committee_weight * PROPOSER_SCORE_BOOST) // 100
-    return attestation_score + proposer_score
+
+    proposer_score = compute_boost(store, state, root, store.proposer_boost_root, is_payload_present, PROPOSER_SCORE_BOOST)
+
+    builder_reveal_score = compute_boost(store, state, root, store.payload_reveal_boost_root, is_payload_present, PAYLOAD_REVEAL_BOOST)
+    builder_withhold_score = compute_boost(store, state, root, store.payload_withhold_boost_root, is_payload_present, PAYLOAD_WITHHOLD_BOOST)
+
+    return attestation_score + proposer_score + builder_reveal_score + builder_withhold_score
 ```
 
 ### New `get_head_no_il` 
@@ -469,6 +486,40 @@ def on_excecution_payload(store: Store, signed_envelope: SignedExecutionPayloadE
     store.execution_payload_states[envelope.beacon_block_root] = state
 ```   
 
+### `seconds_into_slot`
+
+```python
+def seconds_into_slot(store: Store) -> uint64:
+    return (store.time - store.genesis_time) % SECONDS_PER_SLOT
+```
+
+### Modified `on_tick_per_slot`
+
+Modified to reset the payload boost roots
+
+```python
+def on_tick_per_slot(store: Store, time: uint64) -> None:
+    previous_slot = get_current_slot(store)
+
+    # Update store time
+    store.time = time
+
+    current_slot = get_current_slot(store)
+
+    # If this is a new slot, reset store.proposer_boost_root
+    if current_slot > previous_slot:
+        store.proposer_boost_root = Root()
+    else: 
+        # reset the payload boost if this is the attestation time
+        if seconds_into_slot(store) >= SECONDS_PER_SLOT // INTERVALS_PER_SLOT:
+            store.payload_withheld_boost_root = Root()
+            store.payload_reveal_boost_root = Root()
+
+    # If a new epoch, pull-up justification and finalization from previous epoch
+    if current_slot > previous_slot and compute_slots_since_epoch_start(current_slot) == 0:
+        update_checkpoints(store, store.unrealized_justified_checkpoint, store.unrealized_finalized_checkpoint)
+```
+
 ### `on_payload_attestation_message`
 
 ```python
@@ -500,4 +551,14 @@ def on_payload_attestation_message(store: Store,
     ptc_index = ptc.index(ptc_message.validator_index)
     ptc_vote = store.ptc_vote[data.beacon_block_root]
     ptc_vote[ptc_index] = data.payload_status
+    
+    if data.slot != get_current_slot(store):
+        return
+
+    # Update the payload boosts if threshold has been achieved
+    if ptc_vote.count(PAYLOAD_PRESENT) > PAYLOAD_TIMELY_THRESHOLD:
+        store.payload_reveal_boost_root = data.beacon_block_root
+    if ptc_vote.count(PAYLOAD_WITHHELD) > PAYLOAD_TIMELY_THRESHOLD:
+        block = store.blocks[data.beacon_block_root]
+        store.payload_withheld_boost_root = block.parent_root
 ```
