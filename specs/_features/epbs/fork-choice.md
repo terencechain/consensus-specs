@@ -349,10 +349,11 @@ def get_head_no_il(store: Store) -> tuple[Root, bool]:
         # if we have children we consider the current head advanced as a possible head 
         children += [ChildNode(root=head_root, slot=head_slot + 1, head_full)]
         # Sort by latest attesting balance with ties broken lexicographically
-        # Ties broken by favoring full blocks
+        # Ties broken by favoring full blocks according to the PTC vote
+        # Ties are then broken by favoring full blocks
         # Ties broken then by favoring higher slot numbers
         # Ties then broken by favoring block with lexicographically higher root
-        best_child = max(children, key=lambda child: (get_weight(store, child.root, child.slot, child.is_payload_present), child.is_payload_present, child.slot, child.root))
+        best_child = max(children, key=lambda child: (get_weight(store, child.root, child.slot, child.is_payload_present), is_payload_present(child.root), child.is_payload_present, child.slot, child.root))
         if best_child.root == head_root:
             return (best_child.root, best_child.is_payload_present)
         head_root = best_child.root
