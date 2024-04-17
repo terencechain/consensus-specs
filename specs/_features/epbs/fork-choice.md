@@ -342,7 +342,7 @@ def get_head_no_il(store: Store) -> tuple[Root, bool]:
     while True:
         children = [
             ChildNode(root=root, slot=block.slot, is_payload_present=present) for (root, block) in blocks.items()
-            if block.parent_root == head_root for present in (True, False)
+            if block.parent_root == head_root for present in (True, False) if root in store.execution_payload_states or present == False
         ]
         if len(children) == 0:
             return (head_root, head_full)
