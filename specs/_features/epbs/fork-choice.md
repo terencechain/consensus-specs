@@ -275,15 +275,16 @@ def is_supporting_vote(store: Store, root: Root, slot: Slot, is_payload_present:
 ### New `compute_boost`
 
 ```python
-def compute_boost(store: Store, state: State, root: Root, boost_root: Root, is_payload_present: bool, boost_value: uint64) -> Gwei:
-    boost = Gwei(0)
+def compute_boost(store: Store, state: State, root: Root, slot: Slot, boost_root: Root, is_payload_present: bool, boost_value: uint64) -> Gwei:
     if boost_root == Root():
-        return boost
-    (ancestor_root, is_ancestor_full) = get_ancestor(store, boost_root, store.blocks[root].slot)
-    if (ancestor_root == root) and (is_ancestor_full == is_payload_present):
-        committee_weight = get_total_active_balance(state) // SLOTS_PER_EPOCH
-        boost = (committee_weight * boost_value) // 100
-    return boost
+        return Gwei(0)
+    (ancestor_root, is_ancestor_full) = get_ancestor(store, boost_root, slot)
+    if ancestor_root != root:
+        return Gwei(0)
+    if (slot != store.blocks[boost_root].slot) and (is_ancestor_full != is_payload_present):
+        return Gwei(0)
+    committee_weight = get_total_active_balance(state) // SLOTS_PER_EPOCH
+    return  (committee_weight * boost_value) // 100
 ```
 
 ### Modified `get_weight`
@@ -308,10 +309,10 @@ def get_weight(store: Store, root: Root, slot: Slot, is_payload_present: bool) -
         return attestation_score
 
 
-    proposer_score = compute_boost(store, state, root, store.proposer_boost_root, is_payload_present, PROPOSER_SCORE_BOOST)
+    proposer_score = compute_boost(store, state, root, slot, store.proposer_boost_root, is_payload_present, PROPOSER_SCORE_BOOST)
 
-    builder_reveal_score = compute_boost(store, state, root, store.payload_reveal_boost_root, is_payload_present, PAYLOAD_REVEAL_BOOST)
-    builder_withhold_score = compute_boost(store, state, root, store.payload_withhold_boost_root, is_payload_present, PAYLOAD_WITHHOLD_BOOST)
+    builder_reveal_score = compute_boost(store, state, root, slot, store.payload_reveal_boost_root, is_payload_present, PAYLOAD_REVEAL_BOOST)
+    builder_withhold_score = compute_boost(store, state, root, slot, store.payload_withhold_boost_root, is_payload_present, PAYLOAD_WITHHOLD_BOOST)
 
     return attestation_score + proposer_score + builder_reveal_score + builder_withhold_score
 ```
@@ -353,7 +354,7 @@ def get_head_no_il(store: Store) -> tuple[Root, bool]:
         # Ties are then broken by favoring full blocks
         # Ties broken then by favoring higher slot numbers
         # Ties then broken by favoring block with lexicographically higher root
-        best_child = max(children, key=lambda child: (get_weight(store, child.root, child.slot, child.is_payload_present), is_payload_present(child.root), child.is_payload_present, child.slot, child.root))
+        best_child = max(children, key=lambda child: (get_weight(store, child.root, child.slot, child.is_payload_present), is_payload_present(store, child.root), child.is_payload_present, child.slot, child.root))
         if best_child.root == head_root:
             return (best_child.root, best_child.is_payload_present)
         head_root = best_child.root
