@@ -316,6 +316,16 @@ def get_weight(store: Store, root: Root, slot: Slot, is_payload_present: bool) -
     return attestation_score + proposer_score + builder_reveal_score + builder_withhold_score
 ```
 
+### New `ChildNode` 
+Auxiliary class to consider `(block, slot, bool)` LMD voting
+
+```python
+class ChildNode(Container):
+    root: Root
+    slot: Slot
+    is_payload_present: bool
+```
+
 ### New `get_head_no_il` 
 
 **Note:** `get_head_no_il` is a modified version of `get_head` to use the new `get_weight` function. It returns the Beacon block root of the head block and whether its payload is considered present or not. It disregards IL availability. 
@@ -331,22 +341,22 @@ def get_head_no_il(store: Store) -> tuple[Root, bool]:
     head_full = is_payload_present(store, head_root)
     while True:
         children = [
-            (root, block.slot, present) for (root, block) in blocks.items()
+            ChildNode(root=root, slot=block.slot, is_payload_present=present) for (root, block) in blocks.items()
             if block.parent_root == head_root for present in (True, False)
         ]
         if len(children) == 0:
             return (head_root, head_full)
         # if we have children we consider the current head advanced as a possible head 
-        children += [(head_root, head_slot + 1, head_full)]
+        children += [ChildNode(root=head_root, slot=head_slot + 1, present) for present in (True, False)]
         # Sort by latest attesting balance with ties broken lexicographically
         # Ties broken by favoring full blocks
         # Ties broken then by favoring higher slot numbers
         # Ties then broken by favoring block with lexicographically higher root
-        child_root = max(children, key=lambda (root, slot, present): (get_weight(store, root, slot, present), present, slot, root))
-        if child_root == head_root:
-            return (head_root, head_full)
-        head_root = child_root
-        head_full = is_payload_present(store, head_root)
+        best_child = max(children, key=lambda child: (get_weight(store, child.root, child.slot, child.is_payload_present), child.is_payload_present, child.slot, child.root))
+        if best_child.root == head_root:
+            return (best_child.root, best_child.is_payload_present)
+        head_root = best_child.root
+        head_full = best_child.is_payload_present
 ```
 
 ### Modified `get_head` 
