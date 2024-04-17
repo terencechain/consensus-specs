@@ -251,14 +251,13 @@ def is_parent_node_full(store: Store, block: BeaconBlock) -> bool:
 def get_ancestor(store: Store, root: Root, slot: Slot) -> ChildNode:
     """
     Returns the beacon block root, the slot and the payload status of the ancestor of the beacon block 
-    with ``root`` at ``slot``. If the beacon block with ``root`` is already at ``slot`` it returns it's 
-    PTC status instead of the actual payload content. 
+    with ``root`` at ``slot``. If the beacon block with ``root`` is already at ``slot`` or we are 
+    requesting an ancestor "in the future" it returns its PTC status instead of the actual payload content. 
     """
     block = store.blocks[root]
-    if block.slot == slot:
-        return ChildNode(root=root, slot=slot, is_payload_present= is_payload_present(store, root))
+    if block.slot <= slot:
+        return ChildNode(root=root, slot=slot, is_payload_present=is_payload_present(store, root))
 
-    assert block.slot > slot
     parent = store.blocks[block.parent_root]
     if parent.slot > slot:
         return get_ancestor(store, block.parent_root, slot)
@@ -306,7 +305,11 @@ def compute_proposer_boost(store: Store, state: State, node: ChildNode) -> Gwei:
     ancestor = get_ancestor(store, store.proposer_boost_root, node.slot)
     if ancestor.root != node.root:
         return Gwei(0)
-    if (node.slot != store.blocks[store.proposer_boost_root].slot) and (ancestor.is_payload_present != node.is_payload_present):
+    proposer_boost_slot = store.blocks[store.proposer_boost_root].slot
+    # Proposer boost is not applied after skipped slots
+    if node.slot > proposer_boost_slot:
+        return Gwei(0)
+    if (node.slot < proposer_boost_slot) and (ancestor.is_payload_present != node.is_payload_present):
         return Gwei(0)
     committee_weight = get_total_active_balance(state) // SLOTS_PER_EPOCH
     return  (committee_weight * PROPOSER_SCORE_BOOST) // 100
@@ -322,7 +325,7 @@ def compute_withhold_boost(store: Store, state: State, node: ChildNode) -> Gwei:
     ancestor = get_ancestor(store, store.payload_withold_boost_root, node.slot)
     if ancestor.root != node.root:
         return Gwei(0)
-    if node.slot == store.blocks[store.payload_withhold_boost_root].slot:
+    if node.slot >= store.blocks[store.payload_withhold_boost_root].slot:
         ancestor.is_payload_present = store.payload_withhold_boost_full
     if ancestor.is_payload_present != node.is_payload_present:
         return Gwei(0)
@@ -341,7 +344,7 @@ def compute_reveal_boost(store: Store, state: State, node: ChildNode) -> Gwei:
     ancestor = get_ancestor(store, store.payload_reveal_boost_root, node.slot)
     if ancestor.root != node.root:
         return Gwei(0)
-    if node.slot == store.blocks[store.payload_reveal_boost_root].slot:
+    if node.slot >= store.blocks[store.payload_reveal_boost_root].slot:
         ancestor.is_payload_present = True
     if is_ancestor_full != node.is_payload_present:
         return Gwei(0)
