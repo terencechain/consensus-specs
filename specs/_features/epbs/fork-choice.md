@@ -256,7 +256,7 @@ def get_ancestor(store: Store, root: Root, slot: Slot) -> ChildNode:
     """
     block = store.blocks[root]
     if block.slot == slot:
-        return ChildNode(root=root, slot=slot, is_payload_present=store.is_payload_present(root))
+        return ChildNode(root=root, slot=slot, is_payload_present= is_payload_present(store, root))
 
     assert block.slot > slot
     parent = store.blocks[block.parent_root]
