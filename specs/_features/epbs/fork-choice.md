@@ -347,7 +347,7 @@ def get_head_no_il(store: Store) -> tuple[Root, bool]:
         if len(children) == 0:
             return (head_root, head_full)
         # if we have children we consider the current head advanced as a possible head 
-        children += [ChildNode(root=head_root, slot=head_slot + 1, head_full)]
+        children += [ChildNode(root=head_root, slot=head_slot + 1, present) for present in (True, False)]
         # Sort by latest attesting balance with ties broken lexicographically
         # Ties broken by favoring full blocks
         # Ties broken then by favoring higher slot numbers
