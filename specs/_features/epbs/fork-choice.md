@@ -471,14 +471,12 @@ def on_block(store: Store, signed_block: SignedBeaconBlock) -> None:
     parent_block = store.blocks[block.parent_root]
     header = block.body.signed_execution_payload_header.message
     parent_header = parent_block.body.signed_execution_payload_header.message
-    parent_payload_hash = parent_header.block_hash
-    current_payload_parent_hash = header.parent_block_hash
     # Make a copy of the state to avoid mutability issues
-    if current_payload_parent_hash == parent_payload_hash:
+    if is_parent_node_full(store, block):
         assert block.parent_root in store.execution_payload_states
         state = copy(store.execution_payload_states[block.parent_root])
     else:
-        assert current_payload_parent_hash == parent_header.parent_block_hash
+        assert header.parent_block_hash == parent_header.parent_block_hash
         state = copy(store.block_states[block.parent_root])
 
     # Blocks cannot be in the future. If they are, their consideration must be delayed until they are in the past.
@@ -507,7 +505,7 @@ def on_block(store: Store, signed_block: SignedBeaconBlock) -> None:
     # Add a new PTC voting for this block to the store
     store.ptc_vote[block_root] = [PAYLOAD_ABSENT]*PTC_SIZE
     # if the parent block is empty record that the inclusion list for this block has been satisfied
-    if current_payload_parent_hash == parent_header.parent_block_hash:
+    if not is_parent_node_full(store, block):
         store.inclusion_list_available = True
 
     # Notify the store about the payload_attestations in the block
@@ -623,7 +621,7 @@ def on_payload_attestation_message(store: Store,
     if is_from_block && data.slot + 1 != get_current_slot(store):
         return
     time_into_slot = (store.time - store.genesis_time) % SECONDS_PER_SLOT
-    if time_into_slot >= SECONDS_PER_SLOT // INTERVALS_PER_SLOT:
+    if is_from_block and time_into_slot >= SECONDS_PER_SLOT // INTERVALS_PER_SLOT:
         return
 
     # Update the payload boosts if threshold has been achieved
