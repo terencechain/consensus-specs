@@ -371,7 +371,6 @@ def get_weight(store: Store, node: ChildNode) -> Gwei:
     ))
 
     # Compute boosts
-    node = ChildNode(root=root, slot=slot, is_payload_present=is_payload_present)
     proposer_score = compute_boost(store, state, node)
     builder_reveal_score = compute_reveal_boost(store, state, node)
     builder_withhold_score = compute_withhold_boost(store, state, node)
