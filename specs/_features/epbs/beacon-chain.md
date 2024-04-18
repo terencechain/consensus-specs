@@ -452,7 +452,7 @@ The post-state corresponding to a pre-state `state` and a signed execution paylo
 ```python
 def process_block(state: BeaconState, block: BeaconBlock) -> None:
     process_block_header(state, block)
-    removed process_withdrawals(state) [Modified in ePBS]
+    process_withdrawals(state) [Modified in ePBS]
     process_execution_payload_header(state, block) # [Modified in ePBS, removed process_execution_payload]
     process_randao(state, block.body)
     process_eth1_data(state, block.body)
