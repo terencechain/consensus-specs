@@ -383,49 +383,46 @@ def get_weight(store: Store, node: ChildNode) -> Gwei:
 **Note:** `get_head_no_il` is a modified version of `get_head` to use the new `get_weight` function. It returns the Beacon block root of the head block and whether its payload is considered present or not. It disregards IL availability. 
 
 ```python
-def get_head_no_il(store: Store) -> tuple[Root, bool]:
+def get_head_no_il(store: Store) -> ChildNode:
     # Get filtered block tree that only includes viable branches
     blocks = get_filtered_block_tree(store)
     # Execute the LMD-GHOST fork choice
-    head_root = store.justified_checkpoint.root
-    head_block = store.blocks[head_root]
-    head_slot = head_block.slot
-    head_full = is_payload_present(store, head_root)
+    justified_root = store.justified_checkpoint.root
+    justified_block = store.blocks[justified_root]
+    justified_slot = justified_block.slot
+    justified_full = is_payload_present(store, justified_root)
+    best_child = ChildNode(root=head_root, slot=head_slot, is_payload_present=head_full)
     while True:
         children = [
             ChildNode(root=root, slot=block.slot, is_payload_present=present) for (root, block) in blocks.items()
-            if block.parent_root == head_root and 
-            is_parent_node_full(store, block) == head_full if root != store.justified_checkpoint.root
+            if block.parent_root == best_child.root and 
+            is_parent_node_full(store, block) == best_child.is_payload_present if root != store.justified_root
             for present in (True, False) if root in store.execution_payload_states or present == False
         ]
         if len(children) == 0:
-            return (head_root, head_full)
+            return best_child
         # if we have children we consider the current head advanced as a possible head 
-        children += [ChildNode(root=head_root, slot=head_slot + 1, head_full)]
+        children += [ChildNode(root=best_child.root, slot=best_child.slot + 1, best_child.is_payload_present)]
         # Sort by latest attesting balance with ties broken lexicographically
         # Ties broken by favoring full blocks according to the PTC vote
         # Ties are then broken by favoring full blocks
         # Ties broken then by favoring higher slot numbers
         # Ties then broken by favoring block with lexicographically higher root
-        best_child = max(children, key=lambda child: (get_weight(store, child), is_payload_present(store, child.root), child.is_payload_present, child.slot, child.root))
-        if best_child.root == head_root:
-            return (best_child.root, best_child.is_payload_present)
-        head_root = best_child.root
-        head_full = best_child.is_payload_present
-        head_block = store.blocks[head_root]
-        head_slot = head_block.slot
+        new_best_child = max(children, key=lambda child: (get_weight(store, child), is_payload_present(store, child.root), child.is_payload_present, child.slot, child.root))
+        if new_best_child.root == best_child.root:
+            return new_best_child
+        best_child = new_best_child
 ```
 
 ### Modified `get_head` 
 `get_head` is modified to use the new weight system by `(block, slot, payload_present)` voting and to not consider nodes without an available inclusion list
 
 ```python
-def get_head(store: Store) -> tuple[Root, bool]:
-    head_root, _ = get_head_no_il(store)
-    while not store.inclusion_list_available(head_root):
-        head_block = store.blocks[head_root]
-        head_root = head_block.parent_root
-    return head_root, store.is_payload_present(head_root)
+def get_head(store: Store) -> ChildNode:
+    head = get_head_no_il(store)
+    while not store.inclusion_list_available(head.root):
+        head = get_ancestor(store, head.root, head.slot - 1)
+    return head
 ```
 
 ## Engine APIs
