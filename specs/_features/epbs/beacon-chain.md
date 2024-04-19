@@ -100,7 +100,7 @@ At any given slot, the status of the blockchain's head may be either
 
 | Name | Value | Unit | Duration |
 | - | - | :-: | :-: |
-| `MIN_SLOTS_FOR_INCLUSION_LISTS_REQUESTS` | `uint64(2)` | slots | 32 seconds # (New in ePBS) |
+| `MIN_SLOTS_FOR_INCLUSION_LISTS_REQUESTS` | `uint64(2)` | slots | 24 seconds # (New in ePBS) |
 
 ### Max operations per block
 
