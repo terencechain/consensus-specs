@@ -80,8 +80,8 @@ This structure contains the full list of transactions and the summary broadcast 
 
 - `transactions`: `Array of DATA` - Array of transaction objects, each object is a byte list (`DATA`) representing `TransactionType || TransactionPayload` or `LegacyTransaction` as defined in [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718)
 - `summary`: `Array of DATA` - Array of addresses, each object is a byte list (`DATA`, 20 Bytes) representing the "from" address from the transactions in the `transactions` list. 
-- `parent_block_hash`: `DATA`, 32 Bytes.
-- `proposer_index` : `QUANTITY`, 64 Bits.
+- `parentHash`: `DATA`, 32 Bytes.
+- `proposerIndex` : `QUANTITY`, 64 Bits.
 
 ### InclusionListStatusV1
 
