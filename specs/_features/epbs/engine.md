@@ -29,6 +29,9 @@ Engine API changes introduced in the ePBS fork
     - [Request](#request-3)
     - [Response](#response-3)
     - [Specification](#specification-3)
+  - [`engine_getInclusionListV1`](#engine_getinclusionlistv1)
+    - [Request](#request-4)
+    - [Response](#response-4)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -201,3 +204,17 @@ Refer to the specification for [`engine_getPayloadV2`](./shanghai.md#engine_getp
 4. The call **MUST** return `blobs` and `proofs` that match the `commitments` list, i.e. `assert len(blobsBundle.commitments) == len(blobsBundle.blobs) == len(blobsBundle.proofs)` and `assert verify_blob_kzg_proof_batch(blobsBundle.blobs, blobsBundle.commitments, blobsBundle.proofs)`.
 
 5. Client software **MAY** use any heuristics to decide whether to set `shouldOverrideBuilder` flag or not. If client software does not implement any heuristic this flag **SHOULD** be set to `false`.
+
+### `engine_getInclusionListV1`
+
+#### Request
+
+* method: `engine_getInclusionListV1`
+* params:
+    1. `parentHash`: `DATA`, 32 Bytes - hash of the block which the returning inclusion list bases on
+* timeout: 1s
+
+#### Response
+
+* result: [`InclusionListV1`](#inclusionlistv1)
+* error: code and message set in case an exception happens while getting the inclusion list.
