@@ -71,7 +71,7 @@ class ChildNode(Container):
 ## Helpers
 
 ### Modified `LatestMessage`
-**Note:** The class is modified to keep track of the slot instead of the epoch
+**Note:** The class is modified to keep track of the slot instead of the epoch.
 
 ```python
 @dataclass(eq=True, frozen=True)
@@ -415,7 +415,7 @@ def get_head_no_il(store: Store) -> ChildNode:
 ```
 
 ### Modified `get_head` 
-`get_head` is modified to use the new weight system by `(block, slot, payload_present)` voting and to not consider nodes without an available inclusion list
+`get_head` is modified to use the new weight system by `(block, slot, payload_present)` voting and to not consider nodes without an available inclusion list.
 
 ```python
 def get_head(store: Store) -> ChildNode:

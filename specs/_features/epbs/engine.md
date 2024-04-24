@@ -1,6 +1,6 @@
 # Engine API -- ePBS
 
-Engine API changes introduced in the ePBS fork
+Engine API changes introduced in the ePBS fork.
 
 ## Table of contents
 
@@ -69,7 +69,7 @@ This structure has the syntax of [`PayloadAttributesV2`](./shanghai.md#payloadat
 - `suggestedFeeRecipient`: `DATA`, 20 Bytes - suggested value for the `feeRecipient` field of the new payload
 - `withdrawals`: `Array of WithdrawalV1` - Array of withdrawals, each object is an `OBJECT` containing the fields of a `WithdrawalV1` structure.
 - `parentBeaconBlockRoot`: `DATA`, 32 Bytes - Root of the parent beacon block.
-- `inclusionListParentHash`: `DATA`, 32 Bytes - Hash of the parent block of the required inclusion list 
+- `inclusionListParentHash`: `DATA`, 32 Bytes - Hash of the parent block of the required inclusion list.
 - `inclusionListProposer`: 64 Bits - Validator index of the proposer of the inclusion list. 
 
 ### InclusionListV1

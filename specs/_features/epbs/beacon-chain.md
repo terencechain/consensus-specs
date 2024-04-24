@@ -63,11 +63,11 @@ This is the beacon chain specification of the enshrined proposer builder separat
 
 *Note:* This specification is built upon [Deneb](../../deneb/beacon-chain.md) and is under active development.
 
-This feature adds new staked consensus participants called *Builders* and new honest validators duties called *payload timeliness attestations*. The slot is divided in **four** intervals as opposed to the current three. Honest validators gather *signed bids* from builders and submit their consensus blocks (a `SignedBeaconBlock`) at the beginning of the slot. At the start of the second interval, honest validators submit attestations just as they do previous to this feature). At the  start of the third interval, aggregators aggregate these attestations (exactly as before this feature) and the honest builder reveals the full payload. At the start of the fourth interval, some honest validators selected to be members of the new **Payload Timeliness Committee** attest to the presence of the builder's payload.
+This feature adds new staked consensus participants called *Builders* and new honest validators duties called *payload timeliness attestations*. The slot is divided in **four** intervals, one more added to the current three. Honest validators gather *signed bids* from builders and submit their consensus blocks (a `SignedBeaconBlock`) at the beginning of the slot. At the start of the second interval, honest validators submit attestations just as they do previous to this feature). At the  start of the third interval, aggregators aggregate these attestations (exactly as before this feature) and the honest builder reveals the full payload. At the start of the fourth interval, some honest validators selected to be members of the new **Payload Timeliness Committee** attest to the presence of the builder's payload.
 
 At any given slot, the status of the blockchain's head may be either 
-- A block from a previous slot (eg. the current slot's proposer did not submit its block). 
-- An *empty* block from the current slot (eg. the proposer submitted a timely block, but the builder did not reveal the payload on time). 
+- A block from a previous slot (e.g. the current slot's proposer did not submit its block). 
+- An *empty* block from the current slot (e.g. the proposer submitted a timely block, but the builder did not reveal the payload on time). 
 - A full block for the current slot (both the proposer and the builder revealed on time). 
 
 ## Constants
@@ -239,7 +239,7 @@ class BeaconBlockBody(Container):
 
 #### `ExecutionPayload`
 
-**Note:** The `ExecutionPayload` is modified to contain a transaction inclusion list summary signed by the corresponding beacon block proposer 
+**Note:** The `ExecutionPayload` is modified to contain a transaction inclusion list summary signed by the corresponding beacon block proposer.
 
 ```python
 class ExecutionPayload(Container):
@@ -379,7 +379,7 @@ def is_valid_indexed_payload_attestation(state: BeaconState, indexed_payload_att
 
 #### `is_parent_block_full`
 
-This function returns true if the last committed payload header was fulfilled with a full payload, this can only happen when the parent block was full, that is both beacon block and payload were present. This function must be called on a beacon state before processing the execution payload header in the block. 
+This function returns true if the last committed payload header was fulfilled with a payload, this can only happen when both beacon block and payload were present. This function must be called on a beacon state before processing the execution payload header in the block. 
 
 ```python
 def is_parent_block_full(state: BeaconState) -> bool:
