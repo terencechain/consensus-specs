@@ -123,7 +123,7 @@ def upgrade_to_epbs(pre: deneb.BeaconState) -> BeaconState:
         latest_inclusion_list_proposer=0, # [New in ePBS]
         latest_inclusion_list_slot=0, # [New in ePBS]
         latest_block_hash=Hash32(), # [New in ePBS]
-        latest_full_slot=0, # [New in ePBS]
+        latest_full_slot=pre.slot, # [New in ePBS]
         execution_payload_header=ExecutionPayloadHeader(), # [New in ePBS]
         last_withdrawals_root=Root(), # [New in ePBS]
     )
