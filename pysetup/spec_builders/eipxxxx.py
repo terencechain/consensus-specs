@@ -1,16 +1,16 @@
 from typing import Dict
 
 from .base import BaseSpecBuilder
-from ..constants import EPBS
+from ..constants import EIPXXXX
 
 
-class EPBSSpecBuilder(BaseSpecBuilder):
-    fork: str = EPBS
+class EIPXXXXSpecBuilder(BaseSpecBuilder):
+    fork: str = EIPXXXX
 
     @classmethod
     def imports(cls, preset_name: str):
         return f'''
-from eth2spec.epbs import {preset_name} as epbs
+from eth2spec.eipxxxx import {preset_name} as eipxxxx
 '''
 
     @classmethod

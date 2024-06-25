@@ -7,13 +7,13 @@ from .electra import ElectraSpecBuilder
 from .whisk import WhiskSpecBuilder
 from .eip7594 import EIP7594SpecBuilder
 from .eip6800 import EIP6800SpecBuilder
-from .epbs import EPBSSpecBuilder
+from .eipxxxx import EIPXXXXSpecBuilder
 
 
 spec_builders = {
     builder.fork: builder
     for builder in (
         Phase0SpecBuilder, AltairSpecBuilder, BellatrixSpecBuilder, CapellaSpecBuilder, DenebSpecBuilder,
-        ElectraSpecBuilder, WhiskSpecBuilder, EIP7594SpecBuilder, EIP6800SpecBuilder, EPBSSpecBuilder,
+        ElectraSpecBuilder, WhiskSpecBuilder, EIP7594SpecBuilder, EIP6800SpecBuilder, EIPXXXXSpecBuilder,
     )
 }
