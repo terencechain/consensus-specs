@@ -51,13 +51,13 @@ This is the modification of the fork choice accompanying the ePBS upgrade.
 ## Containers
 
 ### New `ChildNode` 
-Auxiliary class to consider `(block, slot, bool)` LMD voting
+Auxiliary class to consider `(block, slot, boolean)` LMD voting
 
 ```python
 class ChildNode(Container):
     root: Root
     slot: Slot
-    is_payload_present: bool
+    is_payload_present: boolean
 ```
 
 ## Helpers
@@ -107,7 +107,7 @@ class Store(object):
     execution_payload_states: Dict[Root, BeaconState] = field(default_factory=dict) # [New in EIP-XXXX]
     ptc_vote: Dict[Root, Vector[uint8, PTC_SIZE]] = field(default_factory=dict) # [New in EIP-XXXX]
     payload_withhold_boost_root: Root # [New in EIP-XXXX]
-    payload_withhold_boost_full: bool # [New in EIP-XXXX]
+    payload_withhold_boost_full: boolean # [New in EIP-XXXX]
     payload_reveal_boost_root: Root # [New in EIP-XXXX]
 ```
    
@@ -259,7 +259,7 @@ def compute_reveal_boost(store: Store, state: State, node: ChildNode) -> Gwei:
 
 ### Modified `get_weight`
 
-**Note:** `get_weight` is modified to only count votes for descending chains that support the status of a triple `Root, Slot, bool`, where the `bool` indicates if the block was full or not. `Slot` is needed for a correct implementation of `(Block, Slot)` voting. 
+**Note:** `get_weight` is modified to only count votes for descending chains that support the status of a triple `Root, Slot, boolean`, where the `boolean` indicates if the block was full or not. `Slot` is needed for a correct implementation of `(Block, Slot)` voting. 
 
 ```python
 def get_weight(store: Store, node: ChildNode) -> Gwei:
@@ -296,7 +296,7 @@ def get_head(store: Store) -> ChildNode:
     justified_block = store.blocks[justified_root]
     justified_slot = justified_block.slot
     justified_full = is_payload_present(store, justified_root)
-    best_child = ChildNode(root=head_root, slot=head_slot, is_payload_present=head_full)
+    best_child = ChildNode(root=justified_root, slot=justified_slot, is_payload_present=justified_full)
     while True:
         children = [
             ChildNode(root=root, slot=block.slot, is_payload_present=present) for (root, block) in blocks.items()
@@ -307,7 +307,7 @@ def get_head(store: Store) -> ChildNode:
         if len(children) == 0:
             return best_child
         # if we have children we consider the current head advanced as a possible head 
-        children += [ChildNode(root=best_child.root, slot=best_child.slot + 1, best_child.is_payload_present)]
+        children += [ChildNode(root=best_child.root, slot=best_child.slot + 1, is_payload_present=best_child.is_payload_present)]
         # Sort by latest attesting balance with ties broken lexicographically
         # Ties broken by favoring full blocks according to the PTC vote
         # Ties are then broken by favoring full blocks
@@ -455,7 +455,7 @@ def on_tick_per_slot(store: Store, time: uint64) -> None:
 
 ```python
 def on_payload_attestation_message(store: Store, 
-    ptc_message: PayloadAttestationMessage, is_from_block: bool=False) -> None:
+    ptc_message: PayloadAttestationMessage, is_from_block: boolean=False) -> None:
     """
     Run ``on_payload_attestation_message`` upon receiving a new ``ptc_message`` directly on the wire.
     """
@@ -484,7 +484,7 @@ def on_payload_attestation_message(store: Store,
     ptc_vote[ptc_index] = data.payload_status
     
     # Only update payload boosts with attestations from a block if the block is for the current slot and it's early
-    if is_from_block && data.slot + 1 != get_current_slot(store):
+    if is_from_block and data.slot + 1 != get_current_slot(store):
         return
     time_into_slot = (store.time - store.genesis_time) % SECONDS_PER_SLOT
     if is_from_block and time_into_slot >= SECONDS_PER_SLOT // INTERVALS_PER_SLOT:
