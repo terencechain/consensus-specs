@@ -51,13 +51,13 @@ This is the modification of the fork choice accompanying the ePBS upgrade.
 ## Containers
 
 ### New `ChildNode` 
-Auxiliary class to consider `(block, slot, boolean)` LMD voting
+Auxiliary class to consider `(block, slot, bool)` LMD voting
 
 ```python
 class ChildNode(Container):
     root: Root
     slot: Slot
-    is_payload_present: boolean
+    is_payload_present: bool
 ```
 
 ## Helpers
@@ -107,7 +107,7 @@ class Store(object):
     execution_payload_states: Dict[Root, BeaconState] = field(default_factory=dict) # [New in EIP-XXXX]
     ptc_vote: Dict[Root, Vector[uint8, PTC_SIZE]] = field(default_factory=dict) # [New in EIP-XXXX]
     payload_withhold_boost_root: Root # [New in EIP-XXXX]
-    payload_withhold_boost_full: boolean # [New in EIP-XXXX]
+    payload_withhold_boost_full: bool # [New in EIP-XXXX]
     payload_reveal_boost_root: Root # [New in EIP-XXXX]
 ```
    
@@ -259,7 +259,7 @@ def compute_reveal_boost(store: Store, state: State, node: ChildNode) -> Gwei:
 
 ### Modified `get_weight`
 
-**Note:** `get_weight` is modified to only count votes for descending chains that support the status of a triple `Root, Slot, boolean`, where the `boolean` indicates if the block was full or not. `Slot` is needed for a correct implementation of `(Block, Slot)` voting. 
+**Note:** `get_weight` is modified to only count votes for descending chains that support the status of a triple `Root, Slot, bool`, where the `bool` indicates if the block was full or not. `Slot` is needed for a correct implementation of `(Block, Slot)` voting. 
 
 ```python
 def get_weight(store: Store, node: ChildNode) -> Gwei:
@@ -455,7 +455,7 @@ def on_tick_per_slot(store: Store, time: uint64) -> None:
 
 ```python
 def on_payload_attestation_message(store: Store, 
-    ptc_message: PayloadAttestationMessage, is_from_block: boolean=False) -> None:
+    ptc_message: PayloadAttestationMessage, is_from_block: bool=False) -> None:
     """
     Run ``on_payload_attestation_message`` upon receiving a new ``ptc_message`` directly on the wire.
     """
