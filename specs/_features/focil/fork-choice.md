@@ -87,8 +87,8 @@ def on_inclusion_list(
     ``on_local_inclusion_list`` verify the inclusion list before import it to fork choice store.
     """
     message = signed_inclusion_list.message
-    # Verify inclusion list slot is bouded to the current slot
-    assert get_current_slot(store) != message.slot
+    # Verify inclusion list slot is bounded to the current slot
+    assert get_current_slot(store) == message.slot
 
     state = store.block_states[message.beacon_block_root]
     ilc = get_inclusion_list_committee(state, message.slot)
