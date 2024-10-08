@@ -137,7 +137,7 @@ class NewPayloadRequest(object):
     versioned_hashes: Sequence[VersionedHash]
     parent_beacon_block_root: Root
     execution_requests: ExecutionRequests 
-    il_transactions: List[Transaction, MAX_TRANSACTIONS_PER_INCLUSION_LIST]  # [New in FOCIL]
+    il_transactions: List[Transaction, MAX_TRANSACTIONS_PER_INCLUSION_LIST * IL_COMMITTEE_SIZE]  # [New in FOCIL]
 ```
 
 #### Engine APIs
@@ -151,9 +151,9 @@ def notify_new_payload(self: ExecutionEngine,
                        execution_payload: ExecutionPayload,
                        execution_requests: ExecutionRequests,
                        parent_beacon_block_root: Root,
-                       il_transactions: List[Transaction, MAX_TRANSACTIONS_PER_INCLUSION_LIST] ) -> bool:
+                       il_transactions: List[Transaction, MAX_TRANSACTIONS_PER_INCLUSION_LIST * IL_COMMITTEE_SIZE] ) -> bool:
     """
-    Return ``True`` if and only if ``execution_payload`` and ``execution_requests`` 
+    Return ``True`` if and only if ``execution_payload``, ``execution_requests`` and ``il_transactions``
     are valid with respect to ``self.execution_state``.
     """
     ...
