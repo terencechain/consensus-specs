@@ -35,6 +35,8 @@ Warning: This file should be placed in https://github.com/ethereum/execution-api
 | - | - |
 | `LOCAL_INCLUSION_LIST_MAX_GAS` |  `uint64(4194304) = 2**22` |
 
+## Structures
+
 ### PayloadStatusV2
 
 This structure contains the result of processing a payload. The fields are encoded as follows:
@@ -47,7 +49,7 @@ This structure contains the result of processing a payload. The fields are encod
 
 ### engine_newPayloadV5
 
-The request of this method is updated with [`ExecutionPayloadV5`](#ExecutionPayloadV5).
+The request of this method is updated with `inclusionListTransactions`.
 
 #### Request
 
@@ -65,7 +67,7 @@ The request of this method is updated with [`ExecutionPayloadV5`](#ExecutionPayl
 #### Specification
 
 1. Client software **MUST** respond to this method call in the following way:
-  * `{status: INVALID_INCLUSION_LIST, latestValidHash: null, validationError: null}` if there are any leftover `inclusionListTransactions` that are not part of the `executionPayload`, they can be processed at the end of the `executionPayload` or the block is full.
+  * `{status: INVALID_INCLUSION_LIST, latestValidHash: null, validationError: null}` if there are any leftover `inclusionListTransactions` that are not part of the `executionPayload`, they can be processed at the end of the `executionPayload` and the block is not full.
 
 ### engine_updateBlockWithInclusionListV1
 

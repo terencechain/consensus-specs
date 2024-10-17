@@ -85,8 +85,7 @@ Proposers are still expected to propose `SignedBeaconBlock` at the beginning of 
 
 #### Update execution client with inclusion lists
 
-The proposer should call `engine_updateInclusionListV1` at `PROPOSER_INCLUSION_LIST_CUT_OFF` into the slot with the list of the inclusion lists that gathered since `LOCAL_INCLUSION_LIST_CUT_OFF`
-
+The proposer should call `engine_updateInclusionListV1` at `PROPOSER_INCLUSION_LIST_CUT_OFF` into the slot with the list of the inclusion lists that gathered during the slot.
 
 ## New inclusion list committee duty
 
