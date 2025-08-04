@@ -552,3 +552,148 @@ def get_pow_block_file_name(pow_block):
 def add_pow_block(spec, store, pow_block, test_steps):
     yield get_pow_block_file_name(pow_block), pow_block
     test_steps.append({"pow_block": get_pow_block_file_name(pow_block)})
+
+
+# EIP7732 Fork Choice Helpers
+
+def create_execution_payload_envelope(spec, beacon_block_root, slot=None, payload_data=None):
+    """Create SignedExecutionPayloadEnvelope for testing"""
+    if payload_data is None:
+        # Create basic execution payload for testing
+        execution_payload = spec.ExecutionPayload(
+            parent_hash=b'\x00' * 32,
+            fee_recipient=b'\x00' * 20,
+            state_root=b'\x00' * 32,
+            receipts_root=b'\x00' * 32,
+            logs_bloom=b'\x00' * 256,
+            prev_randao=b'\x00' * 32,
+            block_number=1,
+            gas_limit=30000000,
+            gas_used=0,
+            timestamp=0,
+            extra_data=b'',
+            base_fee_per_gas=1,
+            block_hash=b'\x00' * 32,
+            transactions=[],
+        )
+        if hasattr(execution_payload, 'blob_gas_used'):  # Post-Deneb
+            execution_payload.blob_gas_used = 0
+            execution_payload.excess_blob_gas = 0
+        if hasattr(execution_payload, 'deposit_requests'):  # Post-Electra
+            execution_payload.deposit_requests = []
+            execution_payload.withdrawal_requests = []
+            execution_payload.consolidation_requests = []
+        payload_data = execution_payload
+
+    # Create execution requests (empty for testing)
+    execution_requests = spec.ExecutionRequests(
+        deposits=[],
+        withdrawals=[],
+        consolidations=[],
+    )
+    
+    envelope = spec.ExecutionPayloadEnvelope(
+        payload=payload_data,
+        execution_requests=execution_requests,
+        builder_index=0,
+        beacon_block_root=beacon_block_root,
+        slot=slot if slot is not None else spec.Slot(0),
+        blob_kzg_commitments=[],
+        state_root=b'\x00' * 32,
+    )
+    
+    # Create signature (empty for testing)
+    signature = spec.BLSSignature()
+    
+    return spec.SignedExecutionPayloadEnvelope(
+        message=envelope,
+        signature=signature
+    )
+
+
+def create_payload_attestation_message(spec, validator_index, beacon_block_root, slot, payload_present=True):
+    """Create PayloadAttestationMessage for PTC voting"""
+    data = spec.PayloadAttestationData(
+        beacon_block_root=beacon_block_root,
+        slot=slot,
+        payload_present=payload_present,
+    )
+    
+    return spec.PayloadAttestationMessage(
+        validator_index=validator_index,
+        data=data,
+        signature=spec.BLSSignature(),  # Empty signature for testing
+    )
+
+
+def get_ptc_indices(spec, state, slot):
+    """Get PTC committee indices for given slot"""
+    return spec.get_ptc(state, slot)
+
+
+def check_payload_status(spec, store, root, expected_status):
+    """Assert payload status matches expected"""
+    # For testing, we need to check based on execution_payload_states presence
+    if expected_status == spec.PAYLOAD_STATUS_FULL:
+        assert root in store.execution_payload_states, f"Expected FULL payload for {encode_hex(root)}"
+    elif expected_status == spec.PAYLOAD_STATUS_EMPTY:
+        assert root not in store.execution_payload_states, f"Expected EMPTY payload for {encode_hex(root)}"
+    # PENDING status is the default state
+
+
+def check_fork_choice_node(spec, store, expected_root, expected_status):
+    """Verify ForkChoiceNode properties"""
+    head = spec.get_head(store)
+    assert isinstance(head, spec.ForkChoiceNode), "get_head should return ForkChoiceNode"
+    assert head.root == expected_root, f"Expected root {encode_hex(expected_root)}, got {encode_hex(head.root)}"
+    assert head.payload_status == expected_status, f"Expected status {expected_status}, got {head.payload_status}"
+
+
+def tick_and_add_execution_payload(spec, store, envelope, test_steps):
+    """Add execution payload and record test step"""
+    spec.on_execution_payload(store, envelope)
+    
+    # Record test step
+    test_steps.append({
+        "execution_payload": {
+            "beacon_block_root": encode_hex(envelope.message.beacon_block_root),
+            "payload_hash": encode_hex(envelope.message.payload.block_hash),
+        }
+    })
+
+
+def on_payload_attestation_and_append_step(spec, store, message, test_steps, is_from_block=True):
+    """Process payload attestation and record step"""
+    spec.on_payload_attestation_message(store, message, is_from_block=is_from_block)
+    
+    # Record test step
+    test_steps.append({
+        "payload_attestation": {
+            "validator_index": int(message.validator_index),
+            "beacon_block_root": encode_hex(message.data.beacon_block_root),
+            "slot": int(message.data.slot),
+            "payload_present": message.data.payload_present,
+        }
+    })
+
+
+def create_signed_payload_attestation_message(spec, state, validator_index, beacon_block_root, slot, payload_present=True):
+    """Create properly signed PayloadAttestationMessage for wire testing"""
+    from eth2spec.test.helpers.keys import privkeys
+    
+    data = spec.PayloadAttestationData(
+        beacon_block_root=beacon_block_root,
+        slot=slot,
+        payload_present=payload_present,
+    )
+    
+    # Sign the attestation data
+    domain = spec.get_domain(state, spec.DOMAIN_PTC_ATTESTER, spec.compute_epoch_at_slot(slot))
+    signing_root = spec.compute_signing_root(data, domain)
+    signature = spec.bls.Sign(privkeys[validator_index], signing_root)
+    
+    return spec.PayloadAttestationMessage(
+        validator_index=validator_index,
+        data=data,
+        signature=signature,
+    )
